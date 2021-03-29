@@ -11,11 +11,8 @@ program collision
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
     double precision, parameter :: vr_max = 3.0d0
-    double precision, parameter :: vz_min = -3.0d0
-    double precision, parameter :: vz_max = 3.0d0
     integer, parameter :: n_r = 15 ! number of radial velocity grid points
     integer, parameter :: n_theta = 40 ! number of theta grid points
-    integer, parameter :: n_z = 30 ! number of vertical velocity grid points
     integer, parameter :: n_t = 10 ! number of timesteps
     integer, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
@@ -34,40 +31,38 @@ program collision
 
     double precision, allocatable :: grid_r(:) ! radial velocities
     double precision, allocatable :: grid_theta(:) ! values from 0 to 360 - delta_theta converted to radians
-    double precision, allocatable :: grid_z(:) ! vertical velocities
-    double precision, allocatable :: vdf(:,:,:) ! velocity distribution function
+    double precision, allocatable :: vdf(:,:) ! velocity distribution function
     double precision, allocatable :: cdf(:) ! cumulative distribution function
     ! double precision, allocatable :: equal_area_remapping(:) ! points to separate equal area remappings
 
-    double precision, allocatable :: remap_count(:,:,:)
-    double precision, allocatable :: depletion_count(:,:,:)
-    double precision, allocatable :: mass_collector(:,:,:)
+    double precision, allocatable :: remap_count(:,:)
+    double precision, allocatable :: depletion_count(:,:)
+    double precision, allocatable :: mass_collector(:,:)
 
-    double precision :: map_coords(5,3) ! coordinates on velocity grid to map post collision mass back onto
-    double precision :: dr, dtheta, dz
+    double precision :: map_coords(4,2) ! coordinates on velocity grid to map post collision mass back onto
+    double precision :: dr, dtheta
     double precision :: nc ! number of collisions
     integer :: sign_one, sign_two
-    integer :: vr1_idx, vr2_idx, vtheta1_idx, vtheta2_idx, vz1_idx, vz2_idx
-    integer :: vr_loc, vtheta_loc, vz_loc
+    integer :: vr1_idx, vr2_idx, vtheta1_idx, vtheta2_idx
+    integer :: vr_loc, vtheta_loc
 
-    double precision :: vr1, vr2, vtheta1, vtheta2, vz1, vz2 ! pre collision velocities
-    double precision :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime, vz1_prime, vz2_prime ! post collision velocities
+    double precision :: vr1, vr2, vtheta1, vtheta2! pre collision velocities
+    double precision :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime ! post collision velocities
     double precision :: delta_m1, delta_m2, delta_m ! colliding mass
-    double precision :: mass1, x_momentum1, y_momentum1, z_momentum1, energy1
-    double precision :: mass2, x_momentum2, y_momentum2, z_momentum2, energy2
+    double precision :: mass1, x_momentum1, y_momentum1, energy1
+    double precision :: mass2, x_momentum2, y_momentum2, energy2
     double precision :: entropy(n_t+1)
     double precision :: mass_sum, initial_zero_point
     integer :: negative_count, positive_count
 
     allocate(grid_r(n_r))
     allocate(grid_theta(n_theta))
-    allocate(grid_z(n_z))
     ! allocate(equal_area_remapping(n_r-1))
-    allocate(vdf(n_r, n_theta, n_z))
-    allocate(mass_collector(n_r, n_theta, n_z))
-    allocate(remap_count(n_r, n_theta, n_z))
-    allocate(depletion_count(n_r, n_theta, n_z))
-    allocate(cdf(n_r * n_theta * n_z - n_z * (n_theta - 1)))
+    allocate(vdf(n_r, n_theta))
+    allocate(mass_collector(n_r, n_theta))
+    allocate(remap_count(n_r, n_theta))
+    allocate(depletion_count(n_r, n_theta))
+    allocate(cdf(n_r * n_theta - (n_theta - 1)))
 
     ! Initialize matrices to collect statistics.
     remap_count = 0
@@ -85,14 +80,8 @@ program collision
         grid_theta(i) = grid_theta(i-1) + (2*Pi)/n_theta
     end do
 
-    grid_z(1) = vz_min
-    do i = 2,n_z
-        grid_z(i) = grid_z(i-1) + (vz_max - vz_min)/(n_z - 1)
-    end do
-
     dr = grid_r(2) - grid_r(1)
     dtheta = grid_theta(2) - grid_theta(1)
-    dz = grid_z(2) - grid_z(1)
 
     ! Calculate values to have equal area remappings.
     ! do i = 1,n_r-1
