@@ -90,19 +90,17 @@ program collision
 
     ! Build Maxwellian velocity distribution function.
     vdf = 0.0d0
-    vdf(1,1,:) = exp(-grid_z**2) * (m_hat/temp_hat) * Pi * (dr/2)**2 * dz
+    vdf(1,1) = 1 * (m_hat/temp_hat) * Pi * (dr/2)**2
     ! Set vdf(1,1) as 0 point, have to multiply by circle area element, new finding points, make sure it can't remap to other thetas.
-    do vz = 1,size(grid_z)
-        do vr = 2,size(grid_r)
-            do vtheta = 1,size(grid_theta)
-                vdf(vr, vtheta, vz) = exp(-(grid_r(vr)**2 + grid_z(vz)**2) * (m_hat/temp_hat))
-                vdf(vr, vtheta, vz) = vdf(vr, vtheta, vz) * grid_r(vr) * dr * dtheta * dz
-            end do
+    do vr = 2,size(grid_r)
+        do vtheta = 1,size(grid_theta)
+            vdf(vr, vtheta) = exp(-(grid_r(vr)**2) * (m_hat/temp_hat))
+            vdf(vr, vtheta) = vdf(vr, vtheta) * grid_r(vr) * dr * dtheta
         end do
     end do
-    vdf = vdf * ndens_hat * (m_hat/(Pi*temp_hat))**1.5
+    vdf = vdf * ndens_hat * (m_hat/(Pi*temp_hat))**1.0
     vdf = vdf/sum(vdf)
-    initial_zero_point = vdf(1,1,20)
+    initial_zero_point = vdf(1,1)
 
     ! vdf(1,1) = 1 * Pi * (dr/2)**2
     ! do vr = 2,size(grid_r)
@@ -133,23 +131,21 @@ program collision
     mass1 = sum(vdf)
     x_momentum1 = calc_x_momentum(grid_r, grid_theta, vdf)
     y_momentum1 = calc_y_momentum(grid_r, grid_theta, vdf)
-    z_momentum1 = calc_z_momentum(grid_z, vdf)
-    energy1 = calc_energy(grid_r, grid_theta, grid_z, vdf)
+    energy1 = calc_energy(grid_r, grid_theta, vdf)
     entropy(1) = calc_entropy(vdf)
     print *, "Initial mass: ", mass1
     print *, "Initial x-momentum: ", x_momentum1
     print *, "Initial y-momentum: ", y_momentum1
-    print *, "Initial z-momentum: ", z_momentum1
     print *, "Initial energy: ", energy1
     print *, ""
 
     do i = 1,n_t
         ! Build cdf.
         cdf = 0.0d0
-        call build_cdf(n_r, n_theta, n_z, vdf, cdf)
+        call build_cdf(n_r, n_theta, vdf, cdf)
 
         ! Calculate delta_m. Using psuedo-Maxwell molecules.
-        nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta * dz)/n_r)) ! beta^3 avg
+        nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta)/n_r)) ! beta^3 avg
         delta_m1 = (t_hat * sum(vdf)**2)/(2.0d0 * kn * nc)
         delta_m2 = delta_m1
         delta_m = delta_m1
@@ -157,56 +153,47 @@ program collision
 
         do j = 1,int(nc)
             ! Calculate pre-collision velocities.
-            call precollision(grid_r, grid_theta, grid_z, n_r, n_theta, cdf, vr1, vtheta1, vz1)
-            call precollision(grid_r, grid_theta, grid_z, n_r, n_theta, cdf, vr2, vtheta2, vz2)
+            call precollision(grid_r, grid_theta, n_r, n_theta, cdf, vr1, vtheta1)
+            call precollision(grid_r, grid_theta, n_r, n_theta, cdf, vr2, vtheta2)
             !print *, vr1, vtheta1, vz1
            ! print *, ""
 
             ! If we select the same velocity, cycle.
-            if ((vr1 .eq. vr2) .and. (vtheta1 .eq. vtheta2) .and. (vz1 .eq. vz2)) cycle
+            if ((vr1 .eq. vr2) .and. (vtheta1 .eq. vtheta2)) cycle
 
             ! Collide two particles.
-            call collide(vr1, vr2, vtheta1, vtheta2, vz1, vz2, &
-                         vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime, vz1_prime, vz2_prime)
-
-            !if (abs(vz1_prime) .gt. vz_max .or. abs(vz2_prime) .gt. vz_max) cycle
-            if ((vr1_prime .gt. vr_max .and. abs(vz1_prime) .gt. vz_max) &
-                .or. (vr2_prime .gt. vr_max .and. abs(vz2_prime) .gt. vz_max)) cycle
+            call collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime)
             
             ! Multiply delta_m by signs to determine depletion direction and deplete. (full Monte Carlo).
             vr1_idx = find_loc(grid_r, vr1)
             vr2_idx = find_loc(grid_r, vr2)
             vtheta1_idx = find_loc(grid_theta, vtheta1)
             vtheta2_idx = find_loc(grid_theta, vtheta2)
-            vz1_idx = find_loc(grid_z, vz1)
-            vz2_idx = find_loc(grid_z, vz2)
-            sign_one = int(sign(1.0d0, vdf(vr1_idx, vtheta1_idx, vz1_idx)))
-            sign_two = int(sign(1.0d0, vdf(vr2_idx, vtheta2_idx, vz2_idx)))
+            sign_one = int(sign(1.0d0, vdf(vr1_idx, vtheta1_idx)))
+            sign_two = int(sign(1.0d0, vdf(vr2_idx, vtheta2_idx)))
             delta_m1 = abs(delta_m1) * sign_one * sign_two
             delta_m2 = abs(delta_m2) * sign_one * sign_two
-            vdf(vr1_idx, vtheta1_idx, vz1_idx) = vdf(vr1_idx, vtheta1_idx, vz1_idx) - delta_m1
-            vdf(vr2_idx, vtheta2_idx, vz2_idx) = vdf(vr2_idx, vtheta2_idx, vz2_idx) - delta_m2
-            depletion_count(vr1_idx, vtheta1_idx, vz1_idx) = depletion_count(vr1_idx, vtheta1_idx, vz1_idx) + 1
-            depletion_count(vr2_idx, vtheta2_idx, vz2_idx) = depletion_count(vr2_idx, vtheta2_idx, vz2_idx) + 1
+            vdf(vr1_idx, vtheta1_idx) = vdf(vr1_idx, vtheta1_idx) - delta_m1
+            vdf(vr2_idx, vtheta2_idx) = vdf(vr2_idx, vtheta2_idx) - delta_m2
+            depletion_count(vr1_idx, vtheta1_idx) = depletion_count(vr1_idx, vtheta1_idx) + 1
+            depletion_count(vr2_idx, vtheta2_idx) = depletion_count(vr2_idx, vtheta2_idx) + 1
 
             ! Find points to map mass back to and add it to vdf for both points.
-            call find_points(vr1_prime, vtheta1_prime, vz1_prime, grid_r, grid_theta, grid_z, map_coords)
-            call replenish(map_coords, vdf, delta_m1, grid_r, grid_theta, grid_z, vr1_prime, vtheta1_prime, vz1_prime, &
+            call find_points(vr1_prime, vtheta1_prime, grid_r, grid_theta, map_coords)
+            call replenish(map_coords, vdf, delta_m1, grid_r, grid_theta, vr1_prime, vtheta1_prime, &
                            mass_sum, negative_count, positive_count)
-            do k = 1,5
+            do k = 1,4
                 vr_loc = find_loc(grid_r, map_coords(k,1))
                 vtheta_loc = find_loc(grid_theta, map_coords(k,2))
-                vz_loc = find_loc(grid_z, map_coords(k,3))
-                remap_count(vr_loc, vtheta_loc, vz_loc) = remap_count(vr_loc, vtheta_loc, vz_loc) + 1
+                remap_count(vr_loc, vtheta_loc) = remap_count(vr_loc, vtheta_loc) + 1
             end do
-            call find_points(vr2_prime, vtheta2_prime, vz2_prime, grid_r, grid_theta, grid_z, map_coords)
-            call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, grid_z, vr2_prime, vtheta2_prime, vz2_prime, &
+            call find_points(vr2_prime, vtheta2_prime, grid_r, grid_theta, map_coords)
+            call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, vr2_prime, vtheta2_prime, &
                            mass_sum, negative_count, positive_count)
-            do k = 1,5
+            do k = 1,4
                 vr_loc = find_loc(grid_r, map_coords(k,1))
                 vtheta_loc = find_loc(grid_theta, map_coords(k,2))
-                vz_loc = find_loc(grid_z, map_coords(k,3))
-                remap_count(vr_loc, vtheta_loc, vz_loc) = remap_count(vr_loc, vtheta_loc, vz_loc) + 1 
+                remap_count(vr_loc, vtheta_loc) = remap_count(vr_loc, vtheta_loc) + 1 
             end do
         end do
 
@@ -227,17 +214,17 @@ program collision
     ! Write data out for post processing in Python.
     open(unit=21, file="vdf.txt", action="write", status="old")
     do i = 1,n_r
-        write(21,*) vdf(i,:,20)
+        write(21,*) vdf(i,:)
     end do
 
     open(unit=24, file="depletion.txt", action="write", status="old")
     do i = 1,n_r
-        write(24,*) depletion_count(i,:,20)
+        write(24,*) depletion_count(i,:)
     end do
 
     open(unit=23, file="remap_count.txt", action="write", status="old")
     do i = 1,n_r
-        write(23,*) remap_count(i,:,20)
+        write(23,*) remap_count(i,:)
     end do
 
     open(unit=22, file="entropy.dat", access="stream")
@@ -248,13 +235,11 @@ program collision
     mass2 = sum(vdf)
     x_momentum2 = calc_x_momentum(grid_r, grid_theta, vdf)
     y_momentum2 = calc_y_momentum(grid_r, grid_theta, vdf)
-    z_momentum2 = calc_z_momentum(grid_z, vdf)
-    energy2 = calc_energy(grid_r, grid_theta, grid_z, vdf)
+    energy2 = calc_energy(grid_r, grid_theta, vdf)
     print *, ""
     print *, "Mass after collisions: ", mass2
     print *, "x-momentum after collisions: ", x_momentum2
     print *, "y-momentum after collisions: ", y_momentum2
-    print *, "z-momentum after collisions: ", z_momentum2
     print *, "Energy after collisions: ", energy2
     print *, ""
 
@@ -262,13 +247,12 @@ program collision
     print *, "Mass percent error: ", (mass2 - mass1)/mass1 * 100
     print *, "x-momentum percent error: ", (x_momentum2 - x_momentum1)/x_momentum1 * 100
     print *, "y-momentum percent error: ", (y_momentum2 - y_momentum1)/y_momentum1 * 100
-    print *, "z-momentum percent error: ", (z_momentum2 - z_momentum1)/z_momentum1 * 100
     print *, "Energy percent error: ", (energy2 - energy1)/energy1 * 100
     ! print *, "Net remapped mass on zero point: ", mass_sum
     print *, "Times chosen as internal point: ", positive_count
     print *, "Times chosen as external point: ", negative_count
     print *, "Zero point initial: ", initial_zero_point
-    print *, "Zero point after: ", vdf(1, 1, 20)
+    print *, "Zero point after: ", vdf(1, 1)
 
     deallocate(vdf)
     deallocate(grid_r)
