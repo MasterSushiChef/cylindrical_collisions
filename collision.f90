@@ -13,7 +13,7 @@ program collision
     double precision, parameter :: vr_max = 3.0d0
     integer, parameter :: n_r = 20 ! number of radial velocity grid points
     integer, parameter :: n_theta = 40 ! number of theta grid points
-    integer, parameter :: n_t = 10 ! number of timesteps
+    integer, parameter :: n_t = 100 ! number of timesteps
     integer, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
     integer, parameter :: ndens_hat = 1
@@ -27,7 +27,7 @@ program collision
     character(len = 6) :: x1
     character(len = 15) :: file_name
 
-    integer :: i, j, k, vr, vtheta, vz ! loop variables
+    integer :: i, j, k, vr, vtheta ! loop variables
 
     double precision, allocatable :: grid_r(:) ! radial velocities
     double precision, allocatable :: grid_theta(:) ! values from 0 to 360 - delta_theta converted to radians

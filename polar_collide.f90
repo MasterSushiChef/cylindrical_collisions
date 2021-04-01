@@ -78,7 +78,7 @@ subroutine collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_pri
     double precision :: g ! relative velocity magnitude
     double precision :: wx, wy ! center of mass velocity
     double precision :: gx_prime, gy_prime
-    double precision :: rf, phi, cos_theta, sin_theta ! collision sphere rotation angles
+    double precision :: rf, phi ! collision sphere rotation angles
     double precision :: delta_m = 1.3503331271824742D-006 ! arbitrary
     double precision :: p_x1, p_y1, p_x2, p_y2, e_1, e_2
     
@@ -104,13 +104,11 @@ subroutine collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_pri
     ! Calculate scattering angle.
     call random_init(.false., .true.)
     call random_number(rf)
-    phi = 2*Pi*rf ! TODO: some angles not necessary
-    cos_theta = 2*rf - 1
-    sin_theta = sqrt(1 - cos_theta**2)
+    phi = 2*Pi*rf
 
     ! Calculate post coliision velocities in x,y.
-    gx_prime = 0.5 * g*sin_theta*cos(phi) ! TODO: change these two things
-    gy_prime = 0.5 * g*sin_theta*sin(phi)
+    gx_prime = 0.5 * g*cos(phi)
+    gy_prime = 0.5 * g*sin(phi)
 
     vx1_prime = wx + gx_prime
     vx2_prime = wx - gx_prime
@@ -144,15 +142,16 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
     double precision, intent(out) :: map_coords(4,2) ! points to map back to
 
     double precision :: vtheta_bounds(2), vr_bounds(2) ! grid values bounding v_prime components
-    integer :: theta_loc, i
+    integer :: theta_loc
 
     vtheta_bounds = find_theta_bounds(vtheta_prime, grid_theta)
 
     ! Determine closest grid points to remap to.
-    if (vr_prime .lt. 1.40*grid_r(2)/2) then
+    if (vr_prime .lt. grid_r(2)/2) then
         ! If the point is closer to lower vz bound.
         map_coords(1,:) = (/ grid_r(2), vtheta_bounds(1) /)
         map_coords(2,:) = (/ grid_r(2), vtheta_bounds(2) /)
+        map_coords(3,:) = (/ grid_r(1), 0.0d0 /)
 
         if (vtheta_bounds(2) .eq. 0.0d0) vtheta_bounds(2) = 2*Pi ! Set bound to 2*pi temporarily to ensure check works.
         if (vtheta_prime - vtheta_bounds(1) .lt. vtheta_bounds(2) - vtheta_prime) then
@@ -164,7 +163,6 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
                 theta_loc = size(grid_theta) + theta_loc
             end if
             
-            map_coords(3,:) = (/ grid_r(1), 0.0d0 /)
             map_coords(4,:) = (/ grid_r(2), grid_theta(theta_loc) /)
         else
             ! If the point is closer to higher grid_theta bound.
@@ -175,10 +173,9 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
                 theta_loc = theta_loc - size(grid_theta)
             end if
             
-            map_coords(3,:) = (/ grid_r(1), 0.0d0 /)
             map_coords(4,:) = (/ grid_r(2), grid_theta(theta_loc) /)
         end if
-    else if (vr_prime .gt. 1.55*grid_r(2)/2 .and. vr_prime .lt. (grid_r(2) + grid_r(3))/2.0d0) then
+    else if (vr_prime .gt. grid_r(2)/2 .and. vr_prime .lt. (grid_r(2) + grid_r(3))/2.0d0) then
         ! If the point is closer to lower vz bound.
         map_coords(1,:) = (/ grid_r(2), vtheta_bounds(1) /)
         map_coords(2,:) = (/ grid_r(2), vtheta_bounds(2) /)
@@ -332,7 +329,7 @@ subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vth
     total_p_y = 0.0d0
     total_e = 0.0d0
 
-    do i = 1,5
+    do i = 1,4
         total_p_x = total_p_x + b(i) * map_coords(i,1)*cos(map_coords(i,2))
         total_p_y = total_p_y + b(i) * map_coords(i,1)*sin(map_coords(i,2))
         total_e = total_e + b(i) * map_coords(i,1)**2
@@ -340,13 +337,13 @@ subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vth
 
     if (abs(total_p_x) - abs(delta_m*vr_prime*cos(vtheta_prime)) .gt. 1D-12) then 
         print *, "x_momentum not conserved"
-        do i = 1,5
+        do i = 1,4
             print *, map_coords(i,:)
         end do
     end if
     if (abs(total_p_y) - abs(delta_m*vr_prime*sin(vtheta_prime)) .gt. 1D-12) then
         print *, "y_momentum not conserved"
-        do i = 1,5
+        do i = 1,4
             print *, map_coords(i,:)
         end do
     end if
