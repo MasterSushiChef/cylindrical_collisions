@@ -11,7 +11,7 @@ program collision
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
     double precision, parameter :: vr_max = 3.0d0
-    integer, parameter :: n_r = 15 ! number of radial velocity grid points
+    integer, parameter :: n_r = 20 ! number of radial velocity grid points
     integer, parameter :: n_theta = 40 ! number of theta grid points
     integer, parameter :: n_t = 10 ! number of timesteps
     integer, parameter :: m_hat = 1
