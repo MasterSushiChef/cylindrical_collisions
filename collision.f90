@@ -12,8 +12,8 @@ program collision
     double precision, parameter :: vr_min = 0.0d0
     double precision, parameter :: vr_max = 3.0d0
     integer, parameter :: n_r = 20 ! number of radial velocity grid points
-    integer, parameter :: n_theta = 40 ! number of theta grid points
-    integer, parameter :: n_t = 100 ! number of timesteps
+    integer, parameter :: n_theta = 48 ! number of theta grid points
+    integer, parameter :: n_t = 500 ! number of timesteps
     integer, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
     integer, parameter :: ndens_hat = 1
@@ -90,11 +90,11 @@ program collision
 
     ! Build Maxwellian velocity distribution function.
     vdf = 0.0d0
-    vdf(1,1) = 1 * (m_hat/temp_hat) * Pi * (dr/2)**2
+    vdf(1,1) = exp(-(0.0d0)**2) * (m_hat/temp_hat) * Pi * (dr/2)**2
     ! Set vdf(1,1) as 0 point, have to multiply by circle area element, new finding points, make sure it can't remap to other thetas.
     do vr = 2,size(grid_r)
         do vtheta = 1,size(grid_theta)
-            vdf(vr, vtheta) = exp(-(grid_r(vr)**2) * (m_hat/temp_hat))
+            vdf(vr, vtheta) = exp(-((grid_r(vr))**2) * (m_hat/temp_hat))
             vdf(vr, vtheta) = vdf(vr, vtheta) * grid_r(vr) * dr * dtheta
         end do
     end do
@@ -102,11 +102,9 @@ program collision
     vdf = vdf/sum(vdf)
     initial_zero_point = vdf(1,1)
 
-    ! vdf(1,1) = 1 * Pi * (dr/2)**2
-    ! do vr = 2,size(grid_r)
-    !   vdf(vr,:) = 1 * grid_r(vr) * dr * dtheta
-    ! end do
-    !vdf(7,13) = 8.0728d0
+    ! vdf(20,20) = 1.0d0
+    ! vdf(15,1) = 1.0d0
+
     ! Build BKW velocity distribution function.
     ! vdf(1,:) = 0.0d0
     ! vdf(1,1) = 1/((2*k0) * (Pi*k0**(1.5d0))) * (5*k0 - 3) * Pi * (dr/2)**2
@@ -155,7 +153,6 @@ program collision
             ! Calculate pre-collision velocities.
             call precollision(grid_r, grid_theta, n_r, n_theta, cdf, vr1, vtheta1)
             call precollision(grid_r, grid_theta, n_r, n_theta, cdf, vr2, vtheta2)
-            !print *, vr1, vtheta1, vz1
            ! print *, ""
 
             ! If we select the same velocity, cycle.
@@ -202,11 +199,6 @@ program collision
         open(unit=20, file=file_name, access="stream")
         write(20) vdf
         close(20)
-
-        file_name = "cdf_" // trim(x1) // ".dat"
-        open(unit=40, file=file_name, access="stream")
-        write(40) cdf
-        close(40)
 
         entropy(i+1) = calc_entropy(vdf)
     end do
