@@ -14,7 +14,7 @@ program collision
     double precision, parameter :: vz_min = -3.0d0
     double precision, parameter :: vz_max = 3.0d0
     integer, parameter :: n_r = 15 ! number of radial velocity grid points
-    integer, parameter :: n_theta = 40 ! number of theta grid points
+    integer, parameter :: n_theta = 48 ! number of theta grid points
     integer, parameter :: n_z = 30 ! number of vertical velocity grid points
     integer, parameter :: n_t = 10 ! number of timesteps
     integer, parameter :: m_hat = 1
