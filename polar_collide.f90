@@ -137,12 +137,12 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
     double precision, intent(out) :: map_coords(4,2) ! points to map back to
 
     double precision :: vtheta_bounds(2), vr_bounds(2) ! grid values bounding v_prime components
-    integer :: theta_loc
+    integer :: theta_loc, i
 
     vtheta_bounds = find_theta_bounds(vtheta_prime, grid_theta)
 
     ! Determine closest grid points to remap to.
-    if (vr_prime .gt. grid_r(2) .and. vr_prime .lt. (grid_r(2) + grid_r(3))/2.0d0) then
+    if (vr_prime .ge. grid_r(2) .and. vr_prime .lt. (grid_r(2) + grid_r(3))/2.0d0) then
         map_coords(1,:) = (/ grid_r(2), vtheta_bounds(1) /)
         map_coords(2,:) = (/ grid_r(2), vtheta_bounds(2) /)
 
@@ -218,7 +218,7 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
     else
         vr_bounds = find_v_bounds(vr_prime, grid_r)
 
-        if (vr_prime - vr_bounds(1) .lt. vr_bounds(2) - vr_prime .or. vr_prime .gt.grid_r(ubound(grid_r,1)) - grid_r(2)/2) then
+        if (vr_prime - vr_bounds(1) .lt. vr_bounds(2) - vr_prime .or. vr_prime .gt. grid_r(ubound(grid_r,1)) - grid_r(2)/2) then
             ! If the point is closer to the lower vr bound.
             map_coords(1,:) = (/ vr_bounds(1), vtheta_bounds(1) /)
             map_coords(2,:) = (/ vr_bounds(1), vtheta_bounds(2) /)
@@ -257,7 +257,12 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
         end if
     end if
 
-    ! print *, map_coords
+    do i =1,4
+        if (map_coords(i,1) .eq. 0.0d0 .and. map_coords(i,2) .ne. 0.0d0) then
+            print *, map_coords
+            print *, vr_prime, vtheta_prime
+        end if
+    end do
 end subroutine find_points
 
 ! Given coordinates to map mass back to, calculate mass and add back to vdf.
