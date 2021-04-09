@@ -13,10 +13,10 @@ program collision
     double precision, parameter :: vr_max = 3.0d0
     double precision, parameter :: vz_min = -3.0d0
     double precision, parameter :: vz_max = 3.0d0
-    integer, parameter :: n_r = 15 ! number of radial velocity grid points
-    integer, parameter :: n_theta = 48 ! number of theta grid points
-    integer, parameter :: n_z = 30 ! number of vertical velocity grid points
-    integer, parameter :: n_t = 10 ! number of timesteps
+    integer, parameter :: n_r = 20 ! number of radial velocity grid points
+    integer, parameter :: n_theta = 68 ! number of theta grid points
+    integer, parameter :: n_z = 40 ! number of vertical velocity grid points
+    integer, parameter :: n_t = 40 ! number of timesteps
     integer, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
     integer, parameter :: ndens_hat = 1
@@ -227,10 +227,10 @@ program collision
         write(20) vdf
         close(20)
 
-        file_name = "cdf_" // trim(x1) // ".dat"
-        open(unit=40, file=file_name, access="stream")
-        write(40) cdf
-        close(40)
+        ! file_name = "cdf_" // trim(x1) // ".dat"
+        ! open(unit=40, file=file_name, access="stream")
+        ! write(40) cdf
+        ! close(40)
 
         entropy(i+1) = calc_entropy(vdf)
     end do
