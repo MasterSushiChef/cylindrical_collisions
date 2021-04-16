@@ -10,14 +10,14 @@ program collision
 
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
-    double precision, parameter :: vr_max = 3.0d0
-    integer, parameter :: n_r = 20 ! number of radial velocity grid points
+    double precision, parameter :: vr_max = 6.5d0
+    integer, parameter :: n_r = 14 ! number of radial velocity grid points
     integer, parameter :: n_theta = 68 ! number of theta grid points
-    integer, parameter :: n_t = 250 ! number of timesteps
-    integer, parameter :: m_hat = 1
+    integer, parameter :: n_t = 400 ! number of timesteps
+    double precision, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
-    integer, parameter :: ndens_hat = 1
-    integer, parameter :: temp_hat = 1
+    double precision, parameter :: ndens_hat = 1
+    double precision, parameter :: temp_hat = 1.0
     double precision, parameter :: kn = 1.0d0
     
     double precision, parameter :: k0 = 0.6d0
@@ -151,8 +151,8 @@ program collision
 
         do j = 1,int(nc)
             ! Calculate pre-collision velocities.
-            call precollision(grid_r, grid_theta, n_r, n_theta, cdf, vr1, vtheta1)
-            call precollision(grid_r, grid_theta, n_r, n_theta, cdf, vr2, vtheta2)
+            call precollision(grid_r, grid_theta, n_theta, cdf, vr1, vtheta1)
+            call precollision(grid_r, grid_theta, n_theta, cdf, vr2, vtheta2)
            ! print *, ""
 
             ! If we select the same velocity, cycle.
