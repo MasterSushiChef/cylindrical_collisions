@@ -10,9 +10,9 @@ program collision
 
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
-    double precision, parameter :: vr_max = 6.5d0
-    integer, parameter :: n_r = 14 ! number of radial velocity grid points
-    integer, parameter :: n_theta = 68 ! number of theta grid points
+    double precision, parameter :: vr_max = 3.5d0
+    integer, parameter :: n_r = 8 ! number of radial velocity grid points
+    integer, parameter :: n_theta = 24 ! number of theta grid points
     integer, parameter :: n_t = 400 ! number of timesteps
     double precision, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
@@ -94,7 +94,7 @@ program collision
     ! Set vdf(1,1) as 0 point, have to multiply by circle area element, new finding points, make sure it can't remap to other thetas.
     do vr = 2,size(grid_r)
         do vtheta = 1,size(grid_theta)
-            vdf(vr, vtheta) = exp(-((grid_r(vr))**2) * (m_hat/temp_hat))
+            vdf(vr, vtheta) = exp(-(grid_r(vr)**2) * (m_hat/temp_hat))
             vdf(vr, vtheta) = vdf(vr, vtheta) * grid_r(vr) * dr * dtheta
         end do
     end do
@@ -115,6 +115,7 @@ program collision
     !     vdf(vr, vtheta) = vdf(vr, vtheta) * dr * dtheta * grid_r(vr) ! how accurate is r dr dtheta compare to real area?
     !   end do
     ! end do
+    ! vdf = vdf/sum(vdf)
 
     open(unit=20, file="vdf_000000.dat", access="stream")
     write(20) vdf
