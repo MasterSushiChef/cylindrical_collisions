@@ -137,7 +137,7 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
     double precision, intent(out) :: map_coords(4,2) ! points to map back to
 
     double precision :: vtheta_bounds(2), vr_bounds(2) ! grid values bounding v_prime components
-    integer :: theta_loc, i, j
+    integer :: theta_loc
 
     vtheta_bounds = find_theta_bounds(vtheta_prime, grid_theta)
 
@@ -281,8 +281,7 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
 end subroutine find_points
 
 ! Given coordinates to map mass back to, calculate mass and add back to vdf.
-subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vtheta_prime, &
-                     mass_sum, negative_count, positive_count)
+subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vtheta_prime)
     implicit none
     double precision, intent(in) :: map_coords(4,2)
     double precision, allocatable, intent(inout) :: vdf(:,:)
@@ -297,8 +296,6 @@ subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vth
     integer :: i
     integer :: vr_loc, vtheta_loc ! index of v,grid_theta in vdf
     double precision :: total_p_x, total_p_y, total_e
-    double precision, intent(inout) :: mass_sum
-    integer, intent(inout) :: negative_count, positive_count
 
     ! Create mapping matrix.
     ! Mass.
@@ -371,12 +368,6 @@ subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vth
         vr_loc = find_loc(grid_r, map_coords(i,1))
         vtheta_loc = find_loc(grid_theta, map_coords(i,2))
         vdf(vr_loc, vtheta_loc) = vdf(vr_loc, vtheta_loc) + b(i)
-
-        if (vr_loc .eq. 1) then
-            mass_sum = mass_sum + b(i)
-            if (b(i) .lt. 0.0) negative_count = negative_count + 1
-            if (b(i) .gt. 0.0) positive_count = positive_count + 1
-        end if
     end do
 end subroutine replenish
 
@@ -431,6 +422,8 @@ pure function find_loc(arr, target) result(res)
     double precision, intent(in) :: target
     integer :: res
     integer :: i
+
+    res = 0
 
     do i = 1,size(arr)
         if (abs(arr(i) - target) .lt. 1D-12) res = i

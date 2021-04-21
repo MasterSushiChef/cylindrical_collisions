@@ -11,9 +11,9 @@ program collision
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
     double precision, parameter :: vr_max = 3.5d0
-    integer, parameter :: n_r = 8 ! number of radial velocity grid points
-    integer, parameter :: n_theta = 24 ! number of theta grid points
-    integer, parameter :: n_t = 400 ! number of timesteps
+    integer, parameter :: n_r = 15 ! number of radial velocity grid points
+    integer, parameter :: n_theta = 100 ! number of theta grid points
+    integer, parameter :: n_t = 200 ! number of timesteps
     double precision, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
     double precision, parameter :: ndens_hat = 1
@@ -52,8 +52,7 @@ program collision
     double precision :: mass1, x_momentum1, y_momentum1, energy1
     double precision :: mass2, x_momentum2, y_momentum2, energy2
     double precision :: entropy(n_t+1)
-    double precision :: mass_sum, initial_zero_point
-    integer :: negative_count, positive_count
+    double precision :: initial_zero_point
 
     allocate(grid_r(n_r))
     allocate(grid_theta(n_theta))
@@ -178,16 +177,14 @@ program collision
 
             ! Find points to map mass back to and add it to vdf for both points.
             call find_points(vr1_prime, vtheta1_prime, grid_r, grid_theta, map_coords)
-            call replenish(map_coords, vdf, delta_m1, grid_r, grid_theta, vr1_prime, vtheta1_prime, &
-                           mass_sum, negative_count, positive_count)
+            call replenish(map_coords, vdf, delta_m1, grid_r, grid_theta, vr1_prime, vtheta1_prime)
             do k = 1,4
                 vr_loc = find_loc(grid_r, map_coords(k,1))
                 vtheta_loc = find_loc(grid_theta, map_coords(k,2))
                 remap_count(vr_loc, vtheta_loc) = remap_count(vr_loc, vtheta_loc) + 1
             end do
             call find_points(vr2_prime, vtheta2_prime, grid_r, grid_theta, map_coords)
-            call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, vr2_prime, vtheta2_prime, &
-                           mass_sum, negative_count, positive_count)
+            call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, vr2_prime, vtheta2_prime)
             do k = 1,4
                 vr_loc = find_loc(grid_r, map_coords(k,1))
                 vtheta_loc = find_loc(grid_theta, map_coords(k,2))
@@ -241,11 +238,9 @@ program collision
     print *, "x-momentum percent error: ", (x_momentum2 - x_momentum1)/x_momentum1 * 100
     print *, "y-momentum percent error: ", (y_momentum2 - y_momentum1)/y_momentum1 * 100
     print *, "Energy percent error: ", (energy2 - energy1)/energy1 * 100
-    ! print *, "Net remapped mass on zero point: ", mass_sum
-    print *, "Times chosen as internal point: ", positive_count
-    print *, "Times chosen as external point: ", negative_count
     print *, "Zero point initial: ", initial_zero_point
     print *, "Zero point after: ", vdf(1, 1)
+    print *, "Negative mass in vdf: ", sum(vdf, mask=vdf .lt. 0.0d0)
 
     deallocate(vdf)
     deallocate(grid_r)
