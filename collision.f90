@@ -42,13 +42,14 @@ program collision
     double precision :: map_coords(4,2) ! coordinates on velocity grid to map post collision mass back onto
     double precision :: dr, dtheta
     double precision :: nc ! number of collisions
+    double precision :: n_hat_neg
     integer :: sign_one, sign_two
     integer :: vr1_idx, vr2_idx, vtheta1_idx, vtheta2_idx
     integer :: vr_loc, vtheta_loc
 
     double precision :: vr1, vr2, vtheta1, vtheta2! pre collision velocities
     double precision :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime ! post collision velocities
-    double precision :: delta_m1, delta_m2, delta_m ! colliding mass
+    double precision :: delta_m1, delta_m2 ! colliding mass
     double precision :: mass1, x_momentum1, y_momentum1, energy1
     double precision :: mass2, x_momentum2, y_momentum2, energy2
     double precision :: entropy(n_t+1)
@@ -144,9 +145,9 @@ program collision
 
         ! Calculate delta_m. Using psuedo-Maxwell molecules.
         nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta)/n_r)) ! beta^3 avg
-        delta_m1 = (t_hat * sum(vdf)**2)/(2.0d0 * kn * nc)
+        n_hat_neg = sum(vdf, mask=vdf .lt. 0.0d0)
+        delta_m1 = (t_hat * (sum(vdf) - 2*n_hat_neg)**2)/(2.0d0 * kn * nc)
         delta_m2 = delta_m1
-        delta_m = delta_m1
         print *, delta_m1, nc, i
 
         do j = 1,int(nc)
