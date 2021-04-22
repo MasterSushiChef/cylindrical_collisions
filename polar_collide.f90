@@ -65,8 +65,8 @@ end subroutine precollision
 ! Given two points, calculate and return post collision velocity.
 subroutine collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime)
     implicit none
-    double precision, intent(in) :: vr1, vr2, vtheta1, vtheta2 ! pre collision velocity index
-    double precision, intent(out) :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime ! post colision velocity index
+    double precision, intent(in) :: vr1, vr2, vtheta1, vtheta2 ! pre collision velocity
+    double precision, intent(out) :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime ! post colision velocity
 
     double precision :: vx1, vy1, vx2, vy2 ! pre collision velocities
     double precision :: vx1_prime, vy1_prime, vx2_prime, vy2_prime ! post collision velocities
@@ -128,6 +128,31 @@ subroutine collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_pri
     if (vtheta1_prime .lt. 0) vtheta1_prime = vtheta1_prime + 2*Pi
     if (vtheta2_prime .lt. 0) vtheta2_prime = vtheta2_prime + 2*Pi
 end subroutine collide
+
+subroutine deplete(vdf, grid_r, grid_theta, vr1, vr2, vtheta1, vtheta2, delta_m1, delta_m2)
+    implicit none
+    double precision, allocatable, intent(inout) :: vdf(:,:)
+    double precision, allocatable, intent(in) :: grid_r(:), grid_theta(:)
+    double precision, intent(in) :: vr1, vr2, vtheta1, vtheta2
+    double precision, intent(inout) :: delta_m1, delta_m2
+    integer :: vr1_idx, vr2_idx, vtheta1_idx, vtheta2_idx
+    integer :: sign_one, sign_two
+
+    vr1_idx = find_loc(grid_r, vr1)
+    vr2_idx = find_loc(grid_r, vr2)
+    vtheta1_idx = find_loc(grid_theta, vtheta1)
+    vtheta2_idx = find_loc(grid_theta, vtheta2)
+
+    ! Calculate proper direction to deplete mass.
+    sign_one = int(sign(1.0d0, vdf(vr1_idx, vtheta1_idx)))
+    sign_two = int(sign(1.0d0, vdf(vr2_idx, vtheta2_idx)))
+    delta_m1 = abs(delta_m1) * sign_one * sign_two
+    delta_m2 = abs(delta_m2) * sign_one * sign_two
+
+    ! Deplete from vdf.
+    vdf(vr1_idx, vtheta1_idx) = vdf(vr1_idx, vtheta1_idx) - delta_m1
+    vdf(vr2_idx, vtheta2_idx) = vdf(vr2_idx, vtheta2_idx) - delta_m2
+end subroutine deplete
 
 ! Given post collision velocity, calculate which points to map mass back to.
 subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
