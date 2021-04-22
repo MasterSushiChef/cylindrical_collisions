@@ -11,8 +11,8 @@ program collision
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
     double precision, parameter :: vr_max = 3.5d0
-    integer, parameter :: n_r = 15 ! number of radial velocity grid points
-    integer, parameter :: n_theta = 50 ! number of theta grid points
+    integer, parameter :: n_r = 40 ! number of radial velocity grid points
+    integer, parameter :: n_theta = 40 ! number of theta grid points
     integer, parameter :: n_t = 100 ! number of timesteps
     double precision, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
@@ -21,7 +21,7 @@ program collision
     double precision, parameter :: kn = 1.0d0
     
     double precision, parameter :: k0 = 0.6d0
-    double precision, parameter :: crms = 5D-3
+    double precision, parameter :: crms = 2.5D-3
 
     ! select method used to deplete: 0 - N^2, 1 - Full Monte Carlo, 2 - Variance Reduction
     integer, parameter :: method = 1
@@ -144,6 +144,7 @@ program collision
                         do i = 1,n_r
                             ! Calculate delta_m. Psuedo-Maxwell molecules.
                             if (x .eq. i .and. y .eq. j) cycle
+                            if (vdf(i, j) .eq. 0.0d0 .or. vdf(x, y) .eq. 0.0d0) cycle
                             delta_m1 = 0.5 * t_hat * vdf(x, y) * vdf(i, j)
                             delta_m2 = delta_m1
 
@@ -168,6 +169,18 @@ program collision
                     end do
                 end do
             end do
+
+            print *, t
+
+            ! TODO: calculate moments here instead of in Python.
+            entropy(t+1) = calc_entropy(vdf)
+
+            ! Write out vdf data for post processing.
+            write (x1, fmt) t
+            file_name = "vdf_" // trim(x1) // ".dat"
+            open(unit=20, file=file_name, access="stream")
+            write(20) vdf
+            close(20)
         else if (method .eq. 1) then
             ! Build cdf.
             cdf = 0.0d0
@@ -232,7 +245,7 @@ program collision
         write(23,*) remap_count(i,:)
     end do
 
-    open(unit=22, file="entropy.dat", access="stream")
+    open(unit=22, file="entropy_montecarlo_0_25.dat", access="stream")
     write(22) entropy
     close(22)
 
