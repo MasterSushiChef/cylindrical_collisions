@@ -1,1 +1,1 @@
-# Discrete Velocity Method (DVM) in cylindrical coordinates
+# Discrete Velocity Method (DVM) in Cylindrical Coordinates
