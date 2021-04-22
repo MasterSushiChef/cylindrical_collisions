@@ -10,10 +10,10 @@ program collision
 
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
-    double precision, parameter :: vr_max = 6.5d0
-    integer, parameter :: n_r = 14 ! number of radial velocity grid points
-    integer, parameter :: n_theta = 68 ! number of theta grid points
-    integer, parameter :: n_t = 400 ! number of timesteps
+    double precision, parameter :: vr_max = 3.5d0
+    integer, parameter :: n_r = 40 ! number of radial velocity grid points
+    integer, parameter :: n_theta = 40 ! number of theta grid points
+    integer, parameter :: n_t = 100 ! number of timesteps
     double precision, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
     double precision, parameter :: ndens_hat = 1
@@ -21,13 +21,15 @@ program collision
     double precision, parameter :: kn = 1.0d0
     
     double precision, parameter :: k0 = 0.6d0
-    double precision, parameter :: crms = 5D-3
+    double precision, parameter :: crms = 2.5D-3
 
+    ! select method used to deplete: 0 - N^2, 1 - Full Monte Carlo, 2 - Variance Reduction
+    integer, parameter :: method = 1
     character(len = 8), parameter :: fmt = '(I6.6)'
     character(len = 6) :: x1
     character(len = 15) :: file_name
 
-    integer :: i, j, k, vr, vtheta ! loop variables
+    integer :: i, j, t, x, y, vr, vtheta ! loop variables
 
     double precision, allocatable :: grid_r(:) ! radial velocities
     double precision, allocatable :: grid_theta(:) ! values from 0 to 360 - delta_theta converted to radians
@@ -35,25 +37,22 @@ program collision
     double precision, allocatable :: cdf(:) ! cumulative distribution function
     ! double precision, allocatable :: equal_area_remapping(:) ! points to separate equal area remappings
 
-    double precision, allocatable :: remap_count(:,:)
-    double precision, allocatable :: depletion_count(:,:)
+    double precision, allocatable :: remap_count(:,:) ! not used.
+    double precision, allocatable :: depletion_count(:,:) ! not used.
     double precision, allocatable :: mass_collector(:,:)
 
     double precision :: map_coords(4,2) ! coordinates on velocity grid to map post collision mass back onto
     double precision :: dr, dtheta
     double precision :: nc ! number of collisions
-    integer :: sign_one, sign_two
-    integer :: vr1_idx, vr2_idx, vtheta1_idx, vtheta2_idx
-    integer :: vr_loc, vtheta_loc
+    double precision :: n_hat_neg
 
     double precision :: vr1, vr2, vtheta1, vtheta2! pre collision velocities
     double precision :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime ! post collision velocities
-    double precision :: delta_m1, delta_m2, delta_m ! colliding mass
+    double precision :: delta_m1, delta_m2 ! colliding mass
     double precision :: mass1, x_momentum1, y_momentum1, energy1
     double precision :: mass2, x_momentum2, y_momentum2, energy2
     double precision :: entropy(n_t+1)
-    double precision :: mass_sum, initial_zero_point
-    integer :: negative_count, positive_count
+    double precision :: initial_zero_point
 
     allocate(grid_r(n_r))
     allocate(grid_theta(n_theta))
@@ -91,10 +90,9 @@ program collision
     ! Build Maxwellian velocity distribution function.
     vdf = 0.0d0
     vdf(1,1) = exp(-(0.0d0)**2) * (m_hat/temp_hat) * Pi * (dr/2)**2
-    ! Set vdf(1,1) as 0 point, have to multiply by circle area element, new finding points, make sure it can't remap to other thetas.
     do vr = 2,size(grid_r)
         do vtheta = 1,size(grid_theta)
-            vdf(vr, vtheta) = exp(-((grid_r(vr))**2) * (m_hat/temp_hat))
+            vdf(vr, vtheta) = exp(-(grid_r(vr)**2) * (m_hat/temp_hat))
             vdf(vr, vtheta) = vdf(vr, vtheta) * grid_r(vr) * dr * dtheta
         end do
     end do
@@ -115,6 +113,7 @@ program collision
     !     vdf(vr, vtheta) = vdf(vr, vtheta) * dr * dtheta * grid_r(vr) ! how accurate is r dr dtheta compare to real area?
     !   end do
     ! end do
+    ! vdf = vdf/sum(vdf)
 
     open(unit=20, file="vdf_000000.dat", access="stream")
     write(20) vdf
@@ -137,70 +136,97 @@ program collision
     print *, "Initial energy: ", energy1
     print *, ""
 
-    do i = 1,n_t
-        ! Build cdf.
-        cdf = 0.0d0
-        call build_cdf(n_r, n_theta, vdf, cdf)
+    do t = 1,n_t
+        if (method .eq. 0) then
+            do y = 1,n_theta
+                do x = 1,n_r
+                    do j = 1,n_theta
+                        do i = 1,n_r
+                            ! Calculate delta_m. Psuedo-Maxwell molecules.
+                            if (x .eq. i .and. y .eq. j) cycle
+                            if (vdf(i, j) .eq. 0.0d0 .or. vdf(x, y) .eq. 0.0d0) cycle
+                            delta_m1 = 0.5 * t_hat * vdf(x, y) * vdf(i, j)
+                            delta_m2 = delta_m1
 
-        ! Calculate delta_m. Using psuedo-Maxwell molecules.
-        nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta)/n_r)) ! beta^3 avg
-        delta_m1 = (t_hat * sum(vdf)**2)/(2.0d0 * kn * nc)
-        delta_m2 = delta_m1
-        delta_m = delta_m1
-        print *, delta_m1, nc, i
+                            ! Pre-collision velocities.
+                            vr1 = grid_r(x)
+                            vtheta1 = grid_theta(y)
+                            vr2 = grid_r(i)
+                            vtheta2 = grid_theta(j)
 
-        do j = 1,int(nc)
-            ! Calculate pre-collision velocities.
-            call precollision(grid_r, grid_theta, n_theta, cdf, vr1, vtheta1)
-            call precollision(grid_r, grid_theta, n_theta, cdf, vr2, vtheta2)
-           ! print *, ""
+                            ! Collide two particles.
+                            call collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime)
 
-            ! If we select the same velocity, cycle.
-            if ((vr1 .eq. vr2) .and. (vtheta1 .eq. vtheta2)) cycle
+                            ! Deplete from vdf.
+                            call deplete(vdf, grid_r, grid_theta, vr1, vr2, vtheta1, vtheta2, delta_m1, delta_m2)
 
-            ! Collide two particles.
-            call collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime)
-            
-            ! Multiply delta_m by signs to determine depletion direction and deplete. (full Monte Carlo).
-            vr1_idx = find_loc(grid_r, vr1)
-            vr2_idx = find_loc(grid_r, vr2)
-            vtheta1_idx = find_loc(grid_theta, vtheta1)
-            vtheta2_idx = find_loc(grid_theta, vtheta2)
-            sign_one = int(sign(1.0d0, vdf(vr1_idx, vtheta1_idx)))
-            sign_two = int(sign(1.0d0, vdf(vr2_idx, vtheta2_idx)))
-            delta_m1 = abs(delta_m1) * sign_one * sign_two
-            delta_m2 = abs(delta_m2) * sign_one * sign_two
-            vdf(vr1_idx, vtheta1_idx) = vdf(vr1_idx, vtheta1_idx) - delta_m1
-            vdf(vr2_idx, vtheta2_idx) = vdf(vr2_idx, vtheta2_idx) - delta_m2
-            depletion_count(vr1_idx, vtheta1_idx) = depletion_count(vr1_idx, vtheta1_idx) + 1
-            depletion_count(vr2_idx, vtheta2_idx) = depletion_count(vr2_idx, vtheta2_idx) + 1
-
-            ! Find points to map mass back to and add it to vdf for both points.
-            call find_points(vr1_prime, vtheta1_prime, grid_r, grid_theta, map_coords)
-            call replenish(map_coords, vdf, delta_m1, grid_r, grid_theta, vr1_prime, vtheta1_prime, &
-                           mass_sum, negative_count, positive_count)
-            do k = 1,4
-                vr_loc = find_loc(grid_r, map_coords(k,1))
-                vtheta_loc = find_loc(grid_theta, map_coords(k,2))
-                remap_count(vr_loc, vtheta_loc) = remap_count(vr_loc, vtheta_loc) + 1
+                            ! Find points to map mass back to and add it to vdf for both points.
+                            call find_points(vr1_prime, vtheta1_prime, grid_r, grid_theta, map_coords)
+                            call replenish(map_coords, vdf, delta_m1, grid_r, grid_theta, vr1_prime, vtheta1_prime)
+                            call find_points(vr2_prime, vtheta2_prime, grid_r, grid_theta, map_coords)
+                            call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, vr2_prime, vtheta2_prime)
+                        end do
+                    end do
+                end do
             end do
-            call find_points(vr2_prime, vtheta2_prime, grid_r, grid_theta, map_coords)
-            call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, vr2_prime, vtheta2_prime, &
-                           mass_sum, negative_count, positive_count)
-            do k = 1,4
-                vr_loc = find_loc(grid_r, map_coords(k,1))
-                vtheta_loc = find_loc(grid_theta, map_coords(k,2))
-                remap_count(vr_loc, vtheta_loc) = remap_count(vr_loc, vtheta_loc) + 1 
+
+            print *, t
+
+            ! TODO: calculate moments here instead of in Python.
+            entropy(t+1) = calc_entropy(vdf)
+
+            ! Write out vdf data for post processing.
+            write (x1, fmt) t
+            file_name = "vdf_" // trim(x1) // ".dat"
+            open(unit=20, file=file_name, access="stream")
+            write(20) vdf
+            close(20)
+        else if (method .eq. 1) then
+            ! Build cdf.
+            cdf = 0.0d0
+            call build_cdf(n_r, n_theta, vdf, cdf)
+
+            ! Calculate delta_m. Using psuedo-Maxwell molecules.
+            nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta)/n_r)) ! beta^3 avg
+            n_hat_neg = sum(vdf, mask=vdf .lt. 0.0d0)
+            delta_m1 = (t_hat * (sum(vdf) - 2*n_hat_neg)**2)/(2.0d0 * kn * nc)
+            delta_m2 = delta_m1
+            print *, delta_m1, nc, t
+
+            do j = 1,int(nc)
+                ! Calculate pre-collision velocities.
+                call precollision(grid_r, grid_theta, n_theta, cdf, vr1, vtheta1)
+                call precollision(grid_r, grid_theta, n_theta, cdf, vr2, vtheta2)
+
+                ! If we select the same velocity, cycle.
+                if ((vr1 .eq. vr2) .and. (vtheta1 .eq. vtheta2)) cycle
+
+                ! Collide two particles.
+                call collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime)
+                
+                ! Multiply delta_m by signs to determine depletion direction and deplete. (full Monte Carlo).
+                call deplete(vdf, grid_r, grid_theta, vr1, vr2, vtheta1, vtheta2, delta_m1, delta_m2)
+
+                ! Find points to map mass back to and add it to vdf for both points.
+                call find_points(vr1_prime, vtheta1_prime, grid_r, grid_theta, map_coords)
+                call replenish(map_coords, vdf, delta_m1, grid_r, grid_theta, vr1_prime, vtheta1_prime)
+                call find_points(vr2_prime, vtheta2_prime, grid_r, grid_theta, map_coords)
+                call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, vr2_prime, vtheta2_prime)
             end do
-        end do
 
-        write (x1, fmt) i
-        file_name = "vdf_" // trim(x1) // ".dat"
-        open(unit=20, file=file_name, access="stream")
-        write(20) vdf
-        close(20)
+            ! TODO: calculate moments here instead of in Python.
+            entropy(t+1) = calc_entropy(vdf)
 
-        entropy(i+1) = calc_entropy(vdf)
+            ! Write out vdf data for post processing.
+            write (x1, fmt) t
+            file_name = "vdf_" // trim(x1) // ".dat"
+            open(unit=20, file=file_name, access="stream")
+            write(20) vdf
+            close(20)
+        else
+            print *, "Unknown method selected."
+            stop
+        end if
     end do
 
     ! Write data out for post processing in Python.
@@ -219,7 +245,7 @@ program collision
         write(23,*) remap_count(i,:)
     end do
 
-    open(unit=22, file="entropy.dat", access="stream")
+    open(unit=22, file="entropy_montecarlo_0_25.dat", access="stream")
     write(22) entropy
     close(22)
 
@@ -240,11 +266,9 @@ program collision
     print *, "x-momentum percent error: ", (x_momentum2 - x_momentum1)/x_momentum1 * 100
     print *, "y-momentum percent error: ", (y_momentum2 - y_momentum1)/y_momentum1 * 100
     print *, "Energy percent error: ", (energy2 - energy1)/energy1 * 100
-    ! print *, "Net remapped mass on zero point: ", mass_sum
-    print *, "Times chosen as internal point: ", positive_count
-    print *, "Times chosen as external point: ", negative_count
     print *, "Zero point initial: ", initial_zero_point
     print *, "Zero point after: ", vdf(1, 1)
+    print *, "Negative mass in vdf: ", sum(vdf, mask=vdf .lt. 0.0d0)
 
     deallocate(vdf)
     deallocate(grid_r)

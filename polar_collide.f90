@@ -65,8 +65,8 @@ end subroutine precollision
 ! Given two points, calculate and return post collision velocity.
 subroutine collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime)
     implicit none
-    double precision, intent(in) :: vr1, vr2, vtheta1, vtheta2 ! pre collision velocity index
-    double precision, intent(out) :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime ! post colision velocity index
+    double precision, intent(in) :: vr1, vr2, vtheta1, vtheta2 ! pre collision velocity
+    double precision, intent(out) :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime ! post colision velocity
 
     double precision :: vx1, vy1, vx2, vy2 ! pre collision velocities
     double precision :: vx1_prime, vy1_prime, vx2_prime, vy2_prime ! post collision velocities
@@ -129,6 +129,31 @@ subroutine collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_pri
     if (vtheta2_prime .lt. 0) vtheta2_prime = vtheta2_prime + 2*Pi
 end subroutine collide
 
+subroutine deplete(vdf, grid_r, grid_theta, vr1, vr2, vtheta1, vtheta2, delta_m1, delta_m2)
+    implicit none
+    double precision, allocatable, intent(inout) :: vdf(:,:)
+    double precision, allocatable, intent(in) :: grid_r(:), grid_theta(:)
+    double precision, intent(in) :: vr1, vr2, vtheta1, vtheta2
+    double precision, intent(inout) :: delta_m1, delta_m2
+    integer :: vr1_idx, vr2_idx, vtheta1_idx, vtheta2_idx
+    integer :: sign_one, sign_two
+
+    vr1_idx = find_loc(grid_r, vr1)
+    vr2_idx = find_loc(grid_r, vr2)
+    vtheta1_idx = find_loc(grid_theta, vtheta1)
+    vtheta2_idx = find_loc(grid_theta, vtheta2)
+
+    ! Calculate proper direction to deplete mass.
+    sign_one = int(sign(1.0d0, vdf(vr1_idx, vtheta1_idx)))
+    sign_two = int(sign(1.0d0, vdf(vr2_idx, vtheta2_idx)))
+    delta_m1 = abs(delta_m1) * sign_one * sign_two
+    delta_m2 = abs(delta_m2) * sign_one * sign_two
+
+    ! Deplete from vdf.
+    vdf(vr1_idx, vtheta1_idx) = vdf(vr1_idx, vtheta1_idx) - delta_m1
+    vdf(vr2_idx, vtheta2_idx) = vdf(vr2_idx, vtheta2_idx) - delta_m2
+end subroutine deplete
+
 ! Given post collision velocity, calculate which points to map mass back to.
 subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
     implicit none
@@ -137,7 +162,7 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
     double precision, intent(out) :: map_coords(4,2) ! points to map back to
 
     double precision :: vtheta_bounds(2), vr_bounds(2) ! grid values bounding v_prime components
-    integer :: theta_loc, i, j
+    integer :: theta_loc
 
     vtheta_bounds = find_theta_bounds(vtheta_prime, grid_theta)
 
@@ -281,8 +306,7 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
 end subroutine find_points
 
 ! Given coordinates to map mass back to, calculate mass and add back to vdf.
-subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vtheta_prime, &
-                     mass_sum, negative_count, positive_count)
+subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vtheta_prime)
     implicit none
     double precision, intent(in) :: map_coords(4,2)
     double precision, allocatable, intent(inout) :: vdf(:,:)
@@ -297,8 +321,6 @@ subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vth
     integer :: i
     integer :: vr_loc, vtheta_loc ! index of v,grid_theta in vdf
     double precision :: total_p_x, total_p_y, total_e
-    double precision, intent(inout) :: mass_sum
-    integer, intent(inout) :: negative_count, positive_count
 
     ! Create mapping matrix.
     ! Mass.
@@ -371,12 +393,6 @@ subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vth
         vr_loc = find_loc(grid_r, map_coords(i,1))
         vtheta_loc = find_loc(grid_theta, map_coords(i,2))
         vdf(vr_loc, vtheta_loc) = vdf(vr_loc, vtheta_loc) + b(i)
-
-        if (vr_loc .eq. 1) then
-            mass_sum = mass_sum + b(i)
-            if (b(i) .lt. 0.0) negative_count = negative_count + 1
-            if (b(i) .gt. 0.0) positive_count = positive_count + 1
-        end if
     end do
 end subroutine replenish
 
@@ -431,6 +447,8 @@ pure function find_loc(arr, target) result(res)
     double precision, intent(in) :: target
     integer :: res
     integer :: i
+
+    res = 0
 
     do i = 1,size(arr)
         if (abs(arr(i) - target) .lt. 1D-12) res = i
