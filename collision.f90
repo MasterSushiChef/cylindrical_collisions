@@ -21,7 +21,7 @@ program collision
     double precision, parameter :: kn = 1.0d0
     
     double precision, parameter :: k0 = 0.6d0
-    double precision, parameter :: crms = 2.5D-3
+    double precision, parameter :: crms = 6D-3
 
     ! select method used to deplete: 0 - N^2, 1 - Full Monte Carlo, 2 - Variance Reduction
     integer, parameter :: method = 1
@@ -37,8 +37,6 @@ program collision
     double precision, allocatable :: cdf(:) ! cumulative distribution function
     ! double precision, allocatable :: equal_area_remapping(:) ! points to separate equal area remappings
 
-    double precision, allocatable :: remap_count(:,:) ! not used.
-    double precision, allocatable :: depletion_count(:,:) ! not used.
     double precision, allocatable :: mass_collector(:,:)
 
     double precision :: map_coords(4,2) ! coordinates on velocity grid to map post collision mass back onto
@@ -51,7 +49,7 @@ program collision
     double precision :: delta_m1, delta_m2 ! colliding mass
     double precision :: mass1, x_momentum1, y_momentum1, energy1
     double precision :: mass2, x_momentum2, y_momentum2, energy2
-    double precision :: entropy(n_t+1)
+    double precision :: entropy(n_t+1), moment(n_t+1)
     double precision :: initial_zero_point
 
     allocate(grid_r(n_r))
@@ -59,13 +57,9 @@ program collision
     ! allocate(equal_area_remapping(n_r-1))
     allocate(vdf(n_r, n_theta))
     allocate(mass_collector(n_r, n_theta))
-    allocate(remap_count(n_r, n_theta))
-    allocate(depletion_count(n_r, n_theta))
     allocate(cdf(n_r * n_theta - (n_theta - 1)))
 
     ! Initialize matrices to collect statistics.
-    remap_count = 0
-    depletion_count = 0
     mass_collector = 0.0d0
 
     ! Initialize values of velocity grid (vr, vtheta, vz).
@@ -130,6 +124,7 @@ program collision
     y_momentum1 = calc_y_momentum(grid_r, grid_theta, vdf)
     energy1 = calc_energy(grid_r, grid_theta, vdf)
     entropy(1) = calc_entropy(vdf)
+    moment(1) = calc_moment(vdf, grid_r, 8)
     print *, "Initial mass: ", mass1
     print *, "Initial x-momentum: ", x_momentum1
     print *, "Initial y-momentum: ", y_momentum1
@@ -172,8 +167,8 @@ program collision
 
             print *, t
 
-            ! TODO: calculate moments here instead of in Python.
             entropy(t+1) = calc_entropy(vdf)
+            moment(t+1) = calc_moment(vdf, grid_r, 8)
 
             ! Write out vdf data for post processing.
             write (x1, fmt) t
@@ -214,8 +209,8 @@ program collision
                 call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, vr2_prime, vtheta2_prime)
             end do
 
-            ! TODO: calculate moments here instead of in Python.
             entropy(t+1) = calc_entropy(vdf)
+            moment(t+1) = calc_moment(vdf, grid_r, 8)
 
             ! Write out vdf data for post processing.
             write (x1, fmt) t
@@ -235,19 +230,13 @@ program collision
         write(21,*) vdf(i,:)
     end do
 
-    open(unit=24, file="depletion.txt", action="write", status="old")
-    do i = 1,n_r
-        write(24,*) depletion_count(i,:)
-    end do
-
-    open(unit=23, file="remap_count.txt", action="write", status="old")
-    do i = 1,n_r
-        write(23,*) remap_count(i,:)
-    end do
-
-    open(unit=22, file="entropy_montecarlo_0_25.dat", access="stream")
+    open(unit=22, file="entropy_montecarlo_6.dat", access="stream")
     write(22) entropy
     close(22)
+
+    open(unit=25, file="M8_montecarlo_6.dat", access="stream")
+    write(25) moment
+    close(25)
 
     ! Check mass, momentum, energy are conserved.
     mass2 = sum(vdf)
@@ -274,7 +263,5 @@ program collision
     deallocate(grid_r)
     deallocate(grid_theta)
     deallocate(cdf)
-    deallocate(depletion_count)
-    deallocate(remap_count)
 
 end program collision
