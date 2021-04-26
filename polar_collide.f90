@@ -114,9 +114,9 @@ subroutine collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_pri
     p_y2 = delta_m * (vy1_prime + vy2_prime)
     e_2 = vx1_prime**2 + vy1_prime**2 + vx2_prime**2 + vy2_prime**2
 
-    if (abs(p_x2 - p_x1) .gt. 1D-12) print *, p_x1, p_x2
-    if (abs(p_y2 - p_y1) .gt. 1D-12) print *, p_y1, p_y2
-    if (abs(e_2 - e_1) .gt. 1D-12) print *, "energy not conserved"
+    if (abs(p_x2 - p_x1) .gt. 1D-12) print *, "collision momentum x not conserved"
+    if (abs(p_y2 - p_y1) .gt. 1D-12) print *, "collision momentum y not conserved"
+    if (abs(e_2 - e_1) .gt. 1D-12) print *, "collision energy not conserved"
 
     ! Convert Cartesian to polar coordinates.
     vtheta1_prime = atan2(vy1_prime, vx1_prime)
@@ -372,19 +372,19 @@ subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vth
     end do
 
     if (abs(total_p_x) - abs(delta_m*vr_prime*cos(vtheta_prime)) .gt. 1D-12) then 
-        print *, "x_momentum not conserved"
+        print *, "remapping x_momentum not conserved"
         do i = 1,4
             print *, map_coords(i,:)
         end do
     end if
     if (abs(total_p_y) - abs(delta_m*vr_prime*sin(vtheta_prime)) .gt. 1D-12) then
-        print *, "y_momentum not conserved"
+        print *, "remapping y_momentum not conserved"
         do i = 1,4
             print *, map_coords(i,:)
         end do
     end if
     if (abs(total_e) - abs(delta_m*vr_prime**2) .gt. 1D-12) then
-        print *, "energy not conserved"
+        print *, "remapping energy not conserved"
         print *, total_e, delta_m*vr_prime**2
     end if
 

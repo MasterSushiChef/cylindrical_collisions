@@ -12,7 +12,7 @@ program collision
     double precision, parameter :: vr_min = 0.0d0
     double precision, parameter :: vr_max = 3.5d0
     integer, parameter :: n_r = 40 ! number of radial velocity grid points
-    integer, parameter :: n_theta = 40 ! number of theta grid points
+    integer, parameter :: n_theta = 50 ! number of theta grid points
     integer, parameter :: n_t = 100 ! number of timesteps
     double precision, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
@@ -21,10 +21,10 @@ program collision
     double precision, parameter :: kn = 1.0d0
     
     double precision, parameter :: k0 = 0.6d0
-    double precision, parameter :: crms = 6D-3
+    double precision, parameter :: crms = 5D-3
 
-    ! select method used to deplete: 0 - N^2, 1 - Full Monte Carlo, 2 - Variance Reduction
-    integer, parameter :: method = 1
+    ! select method used to deplete: 0 - N^2, 1 - Full Monte Carlo, 2 - Monte Carlo/N^2 Hybrid
+    integer, parameter :: method = 2
     character(len = 8), parameter :: fmt = '(I6.6)'
     character(len = 6) :: x1
     character(len = 15) :: file_name
@@ -38,6 +38,7 @@ program collision
     ! double precision, allocatable :: equal_area_remapping(:) ! points to separate equal area remappings
 
     double precision, allocatable :: mass_collector(:,:)
+    double precision :: initial_zero_point
 
     double precision :: map_coords(4,2) ! coordinates on velocity grid to map post collision mass back onto
     double precision :: dr, dtheta
@@ -49,15 +50,14 @@ program collision
     double precision :: delta_m1, delta_m2 ! colliding mass
     double precision :: mass1, x_momentum1, y_momentum1, energy1
     double precision :: mass2, x_momentum2, y_momentum2, energy2
-    double precision :: entropy(n_t+1), moment(n_t+1)
-    double precision :: initial_zero_point
+    double precision :: entropy(n_t+1), moment(n_t+1), neg_mass(n_t+1)
+    integer :: cutoff
 
     allocate(grid_r(n_r))
     allocate(grid_theta(n_theta))
     ! allocate(equal_area_remapping(n_r-1))
     allocate(vdf(n_r, n_theta))
     allocate(mass_collector(n_r, n_theta))
-    allocate(cdf(n_r * n_theta - (n_theta - 1)))
 
     ! Initialize matrices to collect statistics.
     mass_collector = 0.0d0
@@ -94,6 +94,14 @@ program collision
     vdf = vdf/sum(vdf)
     initial_zero_point = vdf(1,1)
 
+    if (method .eq. 2) then 
+        cutoff = 22 ! last vr to do Monte Carlo, switch to N^2 afterwards
+        allocate(cdf(cutoff * n_theta - (n_theta - 1)))
+    else
+        cutoff = 0
+        allocate(cdf(n_r * n_theta - (n_theta - 1)))
+    end if
+
     ! vdf(20,20) = 1.0d0
     ! vdf(15,1) = 1.0d0
 
@@ -125,6 +133,7 @@ program collision
     energy1 = calc_energy(grid_r, grid_theta, vdf)
     entropy(1) = calc_entropy(vdf)
     moment(1) = calc_moment(vdf, grid_r, 8)
+    neg_mass(1) = abs(sum(vdf, mask=vdf .lt. 0.0d0))/sum(vdf)
     print *, "Initial mass: ", mass1
     print *, "Initial x-momentum: ", x_momentum1
     print *, "Initial y-momentum: ", y_momentum1
@@ -132,11 +141,11 @@ program collision
     print *, ""
 
     do t = 1,n_t
-        if (method .eq. 0) then
+        if (method .eq. 0 .or. method .eq. 2) then
             do y = 1,n_theta
-                do x = 1,n_r
+                do x = cutoff+1,n_r
                     do j = 1,n_theta
-                        do i = 1,n_r
+                        do i = cutoff+1,n_r
                             ! Calculate delta_m. Psuedo-Maxwell molecules.
                             if (x .eq. i .and. y .eq. j) cycle
                             if (vdf(i, j) .eq. 0.0d0 .or. vdf(x, y) .eq. 0.0d0) cycle
@@ -169,6 +178,7 @@ program collision
 
             entropy(t+1) = calc_entropy(vdf)
             moment(t+1) = calc_moment(vdf, grid_r, 8)
+            neg_mass(t+1) = abs(sum(vdf, mask=vdf .lt. 0.0d0))/sum(vdf)
 
             ! Write out vdf data for post processing.
             write (x1, fmt) t
@@ -176,13 +186,19 @@ program collision
             open(unit=20, file=file_name, access="stream")
             write(20) vdf
             close(20)
-        else if (method .eq. 1) then
+        end if
+        if (method .eq. 1 .or. method .eq. 2) then
             ! Build cdf.
             cdf = 0.0d0
-            call build_cdf(n_r, n_theta, vdf, cdf)
+            if (method .eq. 2) then
+                call build_cdf(cutoff, n_theta, vdf, cdf)
+                nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta)/cutoff))
+            else
+                call build_cdf(n_r, n_theta, vdf, cdf)
+                nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta)/n_r)) ! beta^3 avg
+            end if
 
             ! Calculate delta_m. Using psuedo-Maxwell molecules.
-            nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta)/n_r)) ! beta^3 avg
             n_hat_neg = sum(vdf, mask=vdf .lt. 0.0d0)
             delta_m1 = (t_hat * (sum(vdf) - 2*n_hat_neg)**2)/(2.0d0 * kn * nc)
             delta_m2 = delta_m1
@@ -211,6 +227,7 @@ program collision
 
             entropy(t+1) = calc_entropy(vdf)
             moment(t+1) = calc_moment(vdf, grid_r, 8)
+            neg_mass(t+1)  = abs(sum(vdf, mask=vdf .lt. 0.0d0))/sum(vdf)
 
             ! Write out vdf data for post processing.
             write (x1, fmt) t
@@ -218,7 +235,8 @@ program collision
             open(unit=20, file=file_name, access="stream")
             write(20) vdf
             close(20)
-        else
+        end if
+        if (method .gt. 2) then
             print *, "Unknown method selected."
             stop
         end if
@@ -230,13 +248,17 @@ program collision
         write(21,*) vdf(i,:)
     end do
 
-    open(unit=22, file="entropy_montecarlo_6.dat", access="stream")
+    open(unit=22, file="entropy_monte_hybrid.dat", access="stream")
     write(22) entropy
     close(22)
 
-    open(unit=25, file="M8_montecarlo_6.dat", access="stream")
+    open(unit=25, file="M8_monte_hybrid.dat", access="stream")
     write(25) moment
     close(25)
+
+    open(unit=23, file="negative_mass_monte_hybrid.dat", access="stream")
+    write(23) neg_mass
+    close(23)
 
     ! Check mass, momentum, energy are conserved.
     mass2 = sum(vdf)
@@ -257,6 +279,7 @@ program collision
     print *, "Energy percent error: ", (energy2 - energy1)/energy1 * 100
     print *, "Zero point initial: ", initial_zero_point
     print *, "Zero point after: ", vdf(1, 1)
+    print *, "Zero point percent change: ", (vdf(1,1) - initial_zero_point)/initial_zero_point * 100
     print *, "Negative mass in vdf: ", sum(vdf, mask=vdf .lt. 0.0d0)
 
     deallocate(vdf)
