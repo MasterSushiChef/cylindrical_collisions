@@ -11,7 +11,7 @@ program collision
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
     double precision, parameter :: vr_max = 3.5d0
-    integer, parameter :: n_r = 40 ! number of radial velocity grid points
+    integer, parameter :: n_r = 16 ! number of radial velocity grid points
     integer, parameter :: n_theta = 50 ! number of theta grid points
     integer, parameter :: n_t = 100 ! number of timesteps
     double precision, parameter :: m_hat = 1
@@ -58,6 +58,7 @@ program collision
     ! allocate(equal_area_remapping(n_r-1))
     allocate(vdf(n_r, n_theta))
     allocate(mass_collector(n_r, n_theta))
+    allocate(cdf(n_r * n_theta - (n_theta - 1)))
 
     ! Initialize matrices to collect statistics.
     mass_collector = 0.0d0
@@ -95,11 +96,9 @@ program collision
     initial_zero_point = vdf(1,1)
 
     if (method .eq. 2) then 
-        cutoff = 22 ! last vr to do Monte Carlo, switch to N^2 afterwards
-        allocate(cdf(cutoff * n_theta - (n_theta - 1)))
+        cutoff = n_r/2 ! last vr to do Monte Carlo, switch to N^2 afterwards
     else
         cutoff = 0
-        allocate(cdf(n_r * n_theta - (n_theta - 1)))
     end if
 
     ! vdf(20,20) = 1.0d0
@@ -190,13 +189,8 @@ program collision
         if (method .eq. 1 .or. method .eq. 2) then
             ! Build cdf.
             cdf = 0.0d0
-            if (method .eq. 2) then
-                call build_cdf(cutoff, n_theta, vdf, cdf)
-                nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta)/cutoff))
-            else
-                call build_cdf(n_r, n_theta, vdf, cdf)
-                nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta)/n_r)) ! beta^3 avg
-            end if
+            call build_cdf(n_r, n_theta, vdf, cdf)
+            nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta)/n_r)) ! beta^3 avg
 
             ! Calculate delta_m. Using psuedo-Maxwell molecules.
             n_hat_neg = sum(vdf, mask=vdf .lt. 0.0d0)
