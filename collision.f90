@@ -11,7 +11,7 @@ program collision
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
     double precision, parameter :: vr_max = 3.5d0
-    integer, parameter :: n_r = 40 ! number of radial velocity grid points
+    integer, parameter :: n_r = 16 ! number of radial velocity grid points
     integer, parameter :: n_theta = 50 ! number of theta grid points
     integer, parameter :: n_t = 100 ! number of timesteps
     double precision, parameter :: m_hat = 1
@@ -24,7 +24,7 @@ program collision
     double precision, parameter :: crms = 5D-3
 
     ! select method used to deplete: 0 - N^2, 1 - Full Monte Carlo, 2 - Monte Carlo/N^2 Hybrid
-    integer, parameter :: method = 2
+    integer, parameter :: method = 1
     character(len = 8), parameter :: fmt = '(I6.6)'
     character(len = 6) :: x1
     character(len = 15) :: file_name
@@ -95,7 +95,7 @@ program collision
     initial_zero_point = vdf(1,1)
 
     if (method .eq. 2) then 
-        cutoff = 22 ! last vr to do Monte Carlo, switch to N^2 afterwards
+        cutoff = n_r/2 + 4 ! last vr to do Monte Carlo, switch to N^2 afterwards
         allocate(cdf(cutoff * n_theta - (n_theta - 1)))
     else
         cutoff = 0
