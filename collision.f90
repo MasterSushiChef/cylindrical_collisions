@@ -10,10 +10,10 @@ program collision
 
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
-    double precision, parameter :: vr_max = 3.5d0
-    integer, parameter :: n_r = 16 ! number of radial velocity grid points
+    double precision, parameter :: vr_max = 5.5d0
+    integer, parameter :: n_r = 23 ! number of radial velocity grid points
     integer, parameter :: n_theta = 50 ! number of theta grid points
-    integer, parameter :: n_t = 100 ! number of timesteps
+    integer, parameter :: n_t = 200 ! number of timesteps
     double precision, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
     double precision, parameter :: ndens_hat = 1
@@ -24,7 +24,7 @@ program collision
     double precision, parameter :: crms = 5D-3
 
     ! select method used to deplete: 0 - N^2, 1 - Full Monte Carlo, 2 - Monte Carlo/N^2 Hybrid
-    integer, parameter :: method = 2
+    integer, parameter :: method = 1
     character(len = 8), parameter :: fmt = '(I6.6)'
     character(len = 6) :: x1
     character(len = 15) :: file_name
@@ -50,7 +50,7 @@ program collision
     double precision :: delta_m1, delta_m2 ! colliding mass
     double precision :: mass1, x_momentum1, y_momentum1, energy1
     double precision :: mass2, x_momentum2, y_momentum2, energy2
-    double precision :: entropy(n_t+1), moment(n_t+1), neg_mass(n_t+1)
+    double precision :: entropy(n_t+1), moment(n_t+1), neg_mass(n_t+1), zero_point(n_t+1)
     integer :: cutoff
 
     allocate(grid_r(n_r))
@@ -84,10 +84,11 @@ program collision
 
     ! Build Maxwellian velocity distribution function.
     vdf = 0.0d0
-    vdf(1,1) = exp(-(0.0d0)**2) * (m_hat/temp_hat) * Pi * (dr/2)**2
+    vdf(1,1) = exp(-(1.0)) * (m_hat/temp_hat) * Pi * (dr/2)**2
     do vr = 2,size(grid_r)
         do vtheta = 1,size(grid_theta)
-            vdf(vr, vtheta) = exp(-(grid_r(vr)**2) * (m_hat/temp_hat))
+            vdf(vr, vtheta) = exp(-((grid_r(vr)*cos(grid_theta(vtheta)) - 1.0)**2 + &
+                (grid_r(vr)*sin(grid_theta(vtheta)))**2) * (m_hat/temp_hat))
             vdf(vr, vtheta) = vdf(vr, vtheta) * grid_r(vr) * dr * dtheta
         end do
     end do
@@ -133,6 +134,7 @@ program collision
     entropy(1) = calc_entropy(vdf)
     moment(1) = calc_moment(vdf, grid_r, 8)
     neg_mass(1) = abs(sum(vdf, mask=vdf .lt. 0.0d0))/sum(vdf)
+    zero_point(1) = vdf(1, 1)
     print *, "Initial mass: ", mass1
     print *, "Initial x-momentum: ", x_momentum1
     print *, "Initial y-momentum: ", y_momentum1
@@ -222,6 +224,7 @@ program collision
             entropy(t+1) = calc_entropy(vdf)
             moment(t+1) = calc_moment(vdf, grid_r, 8)
             neg_mass(t+1)  = abs(sum(vdf, mask=vdf .lt. 0.0d0))/sum(vdf)
+            zero_point(t+1) = vdf(1, 1)
 
             ! Write out vdf data for post processing.
             write (x1, fmt) t
@@ -242,17 +245,21 @@ program collision
         write(21,*) vdf(i,:)
     end do
 
-    open(unit=22, file="entropy_monte_hybrid.dat", access="stream")
+    open(unit=22, file="entropy_theta50_6.dat", access="stream")
     write(22) entropy
     close(22)
 
-    open(unit=25, file="M8_monte_hybrid.dat", access="stream")
-    write(25) moment
-    close(25)
+    ! open(unit=25, file="M8_theta50_1.dat", access="stream")
+    ! write(25) moment
+    ! close(25)
 
-    open(unit=23, file="negative_mass_monte_hybrid.dat", access="stream")
+    open(unit=23, file="negative_mass_theta50_6.dat", access="stream")
     write(23) neg_mass
     close(23)
+
+    open(unit=26, file="zero_point_theta50_6.dat", access="stream")
+    write(26) zero_point
+    close(26)
 
     ! Check mass, momentum, energy are conserved.
     mass2 = sum(vdf)
