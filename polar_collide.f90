@@ -18,9 +18,13 @@ subroutine build_cdf(n_r, n_theta, vdf, cdf)
     ! Build cumulative distribution function.
     cdf(1) = abs(vdf(1, 1))
     index = 2
-
     do i = 2,n_r
-        do j = 1,n_theta
+        cdf(index) = cdf(index-1) + abs(vdf(i, 1))
+        index = index + 1
+    end do
+
+    do j = 2,n_theta
+        do i = 1,n_r
             cdf(index) = cdf(index-1) + abs(vdf(i, j))
             index = index + 1
         end do
@@ -29,10 +33,10 @@ subroutine build_cdf(n_r, n_theta, vdf, cdf)
 end subroutine build_cdf
 
 ! Deplete mass from vdf and calculate pre-collision velocity index.
-subroutine precollision(grid_r, grid_theta, n_theta, cdf, vr, vtheta)
+subroutine precollision(grid_r, grid_theta, n_r, cdf, vr, vtheta)
     implicit none
     double precision, allocatable, intent(in) :: grid_r(:), grid_theta(:)
-    integer, intent(in) :: n_theta ! size of grid
+    integer, intent(in) :: n_r ! size of grid
     double precision, allocatable, intent(in) :: cdf(:)
     double precision, intent(out) :: vr, vtheta
 
@@ -53,9 +57,9 @@ subroutine precollision(grid_r, grid_theta, n_theta, cdf, vr, vtheta)
         i = 1
         j = 1
     else
-        l = l - 2
-        i = l/n_theta + 2
-        j = mod(l, n_theta) + 1
+        l = l - 1
+        j = l/n_r + 1
+        i = mod(l, n_r) + 1
     end if
 
     vr = grid_r(i)
@@ -155,71 +159,63 @@ subroutine deplete(vdf, grid_r, grid_theta, vr1, vr2, vtheta1, vtheta2, delta_m1
 end subroutine deplete
 
 ! Given post collision velocity, calculate which points to map mass back to.
-subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
+subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords, t)
     implicit none
     double precision, allocatable, intent(in) :: grid_r(:), grid_theta(:)
     double precision, intent(in) :: vr_prime, vtheta_prime
     double precision, intent(out) :: map_coords(4,2) ! points to map back to
+    integer, intent(in) :: t ! time step
 
     double precision :: vtheta_bounds(2), vr_bounds(2) ! grid values bounding v_prime components
-    integer :: theta_loc
+    integer :: theta_loc, i
 
     vtheta_bounds = find_theta_bounds(vtheta_prime, grid_theta)
 
     ! Determine closest grid points to remap to.
-    if (vr_prime .lt. (grid_r(2) + grid_r(3))/2.0d0) then
-        map_coords(1,:) = (/ grid_r(2), vtheta_bounds(1) /)
-        map_coords(2,:) = (/ grid_r(2), vtheta_bounds(2) /)
+    if (vr_prime .lt. (grid_r(1) + grid_r(2))/2.0d0) then
+        map_coords(1,:) = (/ grid_r(1), vtheta_bounds(1) /)
+        map_coords(2,:) = (/ grid_r(1), vtheta_bounds(2) /)
 
         if (vtheta_bounds(2) .eq. 0.0d0) vtheta_bounds(2) = 2*Pi ! Set bound to 2*pi temporarily to ensure check works.
         if (vtheta_prime - vtheta_bounds(1) .lt. vtheta_bounds(2) - vtheta_prime) then
             ! If the point is closer to lower grid_theta bound.
             if (abs(vtheta_bounds(2) - 2*Pi) .lt. 1D-8) vtheta_bounds(2) = 0.0d0
 
+            if (mod(t, 2) .eq. 0) then 
+                map_coords(3,:) = (/ grid_r(2), vtheta_bounds(1) /)
+            else
+                map_coords(3,:) = (/ grid_r(3), vtheta_bounds(1) /)
+            end if
+
             theta_loc = find_loc(grid_theta, vtheta_bounds(1)) - size(grid_theta)/2
             if (theta_loc .lt. 1) then
                 theta_loc = size(grid_theta) + theta_loc
             end if
-            
-            if (vr_prime .lt. grid_r(2)/2) then 
-                map_coords(3,:) = (/ grid_r(2), grid_theta(theta_loc) /)
-            else
-                map_coords(3,:) = (/ grid_r(3), vtheta_bounds(1) /)
-            end if
-            map_coords(4,:) = (/ grid_r(1), 0.0d0 /)
+
+            map_coords(4,:) = (/ grid_r(1), grid_theta(theta_loc )/)
         else
             ! If the point is closer to higher grid_theta bound.
             if (abs(vtheta_bounds(2) - 2*Pi) .lt. 1D-8) vtheta_bounds(2) = 0.0d0
+
+            if (mod(t, 2) .eq. 0) then
+                map_coords(3,:) = (/ grid_r(2), vtheta_bounds(2) /)
+            else
+                map_coords(3,:) = (/ grid_r(3), vtheta_bounds(2) /)
+            end if
 
             theta_loc = find_loc(grid_theta, vtheta_bounds(2)) + size(grid_theta)/2
             if (theta_loc .gt. size(grid_theta)) then
                 theta_loc = theta_loc - size(grid_theta)
             end if
-
-            if (vr_prime .lt. grid_r(2)/2) then 
-                map_coords(3,:) = (/ grid_r(2), grid_theta(theta_loc) /)
-            else
-                map_coords(3,:) = (/ grid_r(3), vtheta_bounds(2) /)
-            end if
-            map_coords(4,:) = (/ grid_r(1), 0.0d0 /)
+            
+            map_coords(4,:) = (/ grid_r(1), grid_theta(theta_loc) /)
         end if
-    ! else if (vr_prime .lt. grid_r(2)) then
-    !     map_coords(1,:) = (/ grid_r(2), vtheta_bounds(1) /)
-    !     map_coords(2,:) = (/ grid_r(2), vtheta_bounds(2) /)
-    !     map_coords(3,:) = (/ grid_r(1), 0.0d0 /)
 
-    !     if (vtheta_bounds(2) .eq. 0.0d0) vtheta_bounds(2) = 2*Pi ! Set bound to 2*pi temporarily to ensure check works.
-    !     if (vtheta_prime - vtheta_bounds(1) .lt. vtheta_bounds(2) - vtheta_prime) then
-    !         ! If the point is closer to lower grid_theta bound.
-    !         if (abs(vtheta_bounds(2) - 2*Pi) .lt. 1D-8) vtheta_bounds(2) = 0.0d0
-
-    !         map_coords(4,:) = (/ grid_r(3), vtheta_bounds(1) /)
-    !     else
-    !         ! If the point is closer to higher grid_theta bound.
-    !         if (abs(vtheta_bounds(2) - 2*Pi) .lt. 1D-8) vtheta_bounds(2) = 0.0d0
-
-    !         map_coords(4,:) = (/ grid_r(3), vtheta_bounds(2) /)
-    !     end if
+        ! do i = 1,4
+        !     print *, map_coords(i, :)
+        ! end do
+        ! print *, vr_prime, vtheta_prime
+        ! print *, ""
     else if (vr_prime .gt. grid_r(ubound(grid_r,1)) - grid_r(2)/2) then
         map_coords(1,:) = (/ grid_r(ubound(grid_r,1)), vtheta_bounds(1) /)
         map_coords(2,:) = (/ grid_r(ubound(grid_r,1)), vtheta_bounds(2) /)
@@ -294,15 +290,13 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
         end if
     end if
 
-    ! do i = 1,4
-    !     if (map_coords(i,1) .eq. grid_r(7)) then
-    !         do j = 1,4
-    !             print *, map_coords(j, :)
-    !         end do
-    !         print *, vr_prime, vtheta_prime
-    !         print *, ""
-    !     end if
-    ! end do
+    ! if (vr_prime .lt. grid_r(2) .and. vr_prime .gt. (grid_r(1) + grid_r(2))/2.0d0) then
+    !     do i = 1,4
+    !         print *, map_coords(i, :)
+    !     end do
+    !     print *, vr_prime, vtheta_prime
+    !     print *, ""
+    ! end if
 end subroutine find_points
 
 ! Given coordinates to map mass back to, calculate mass and add back to vdf.
