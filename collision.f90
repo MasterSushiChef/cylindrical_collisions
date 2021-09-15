@@ -10,9 +10,9 @@ program collision
 
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
-    double precision, parameter :: vr_max = 5.5d0
-    integer, parameter :: n_r = 23 ! number of radial velocity grid points
-    integer, parameter :: n_theta = 50 ! number of theta grid points
+    double precision, parameter :: vr_max = 4.5d0
+    integer, parameter :: n_r = 9  ! number of radial velocity grid points
+    integer, parameter :: n_theta = 28 ! number of theta grid points
     integer, parameter :: n_t = 200 ! number of timesteps
     double precision, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.1d0
@@ -40,7 +40,7 @@ program collision
     double precision, allocatable :: mass_collector(:,:)
     double precision :: initial_zero_point
 
-    double precision :: map_coords(4,2) ! coordinates on velocity grid to map post collision mass back onto
+    double precision :: map_coords(5,2) ! coordinates on velocity grid to map post collision mass back onto
     double precision :: dr, dtheta
     double precision :: nc ! number of collisions
     double precision :: n_hat_neg
@@ -84,10 +84,10 @@ program collision
 
     ! Build Maxwellian velocity distribution function.
     vdf = 0.0d0
-    vdf(1,1) = exp(-(1.0)) * (m_hat/temp_hat) * Pi * (dr/2)**2
+    vdf(1,1) = exp(0.0d0) * (m_hat/temp_hat) * Pi * (dr/2)**2
     do vr = 2,size(grid_r)
         do vtheta = 1,size(grid_theta)
-            vdf(vr, vtheta) = exp(-((grid_r(vr)*cos(grid_theta(vtheta)) - 1.0)**2 + &
+            vdf(vr, vtheta) = exp(-((grid_r(vr)*cos(grid_theta(vtheta)))**2 + &
                 (grid_r(vr)*sin(grid_theta(vtheta)))**2) * (m_hat/temp_hat))
             vdf(vr, vtheta) = vdf(vr, vtheta) * grid_r(vr) * dr * dtheta
         end do
@@ -102,8 +102,8 @@ program collision
         cutoff = 0
     end if
 
-    ! vdf(20,20) = 1.0d0
-    ! vdf(15,1) = 1.0d0
+    ! vdf(2,1) = 0.5d0
+    ! vdf(2,21) = 0.5d0
 
     ! Build BKW velocity distribution function.
     ! vdf(1,:) = 0.0d0
@@ -249,9 +249,9 @@ program collision
     write(22) entropy
     close(22)
 
-    ! open(unit=25, file="M8_theta50_1.dat", access="stream")
-    ! write(25) moment
-    ! close(25)
+    open(unit=25, file="M8_maxwellian_working.dat", access="stream")
+    write(25) moment
+    close(25)
 
     open(unit=23, file="negative_mass_theta50_6.dat", access="stream")
     write(23) neg_mass
