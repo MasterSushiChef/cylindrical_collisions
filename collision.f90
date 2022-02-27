@@ -10,12 +10,12 @@ program collision
 
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
-    double precision, parameter :: vr_max = 4.5d0
-    integer, parameter :: n_r = 9  ! number of radial velocity grid points
-    integer, parameter :: n_theta = 28 ! number of theta grid points
-    integer, parameter :: n_t = 200 ! number of timesteps
+    double precision, parameter :: vr_max = 3.5d0
+    integer, parameter :: n_r = 8 ! number of radial velocity grid points
+    integer, parameter :: n_theta = 40 ! number of theta grid points
+    integer, parameter :: n_t = 50 ! number of timesteps
     double precision, parameter :: m_hat = 1
-    double precision, parameter :: t_hat = 0.1d0
+    double precision, parameter :: t_hat = 0.2d0
     double precision, parameter :: ndens_hat = 1
     double precision, parameter :: temp_hat = 1.0
     double precision, parameter :: kn = 1.0d0
@@ -84,6 +84,8 @@ program collision
 
     ! Build Maxwellian velocity distribution function.
     vdf = 0.0d0
+    ! vdf(4,1) = 4.0
+    ! vdf(4,21) = 4.0
     vdf(1,1) = exp(0.0d0) * (m_hat/temp_hat) * Pi * (dr/2)**2
     do vr = 2,size(grid_r)
         do vtheta = 1,size(grid_theta)
@@ -95,6 +97,7 @@ program collision
     vdf = vdf * ndens_hat * (m_hat/(Pi*temp_hat))**1.0
     vdf = vdf/sum(vdf)
     initial_zero_point = vdf(1,1)
+    print *, (initial_zero_point)
 
     if (method .eq. 2) then 
         cutoff = n_r/2 ! last vr to do Monte Carlo, switch to N^2 afterwards

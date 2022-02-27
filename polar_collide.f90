@@ -167,7 +167,7 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
     vtheta_bounds = find_theta_bounds(vtheta_prime, grid_theta)
 
     ! Determine closest grid points to remap to.
-    if (vr_prime .lt. grid_r(2)/2) then
+    if (vr_prime .lt. grid_r(2)/2) then  ! can add scaling factor here to improve solutions with smaller than 0.5 vr spacing
         if (vtheta_bounds(2) .eq. 0.0d0) vtheta_bounds(2) = 2*Pi ! Set bound to 2*pi temporarily to ensure check works.
         if (vtheta_prime - vtheta_bounds(1) .lt. vtheta_bounds(2) - vtheta_prime) then
             ! If the point is closer to lower grid_theta bound.
@@ -181,12 +181,17 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
             map_coords(1,:) = [grid_r(1), 0.0d0]
             map_coords(2,:) = [grid_r(2), vtheta_bounds(1)]
             map_coords(3,:) = [grid_r(2), vtheta_bounds(2)]
+            if (vtheta_bounds(1) .eq. 0.0d0) then
+                map_coords(4,:) = [grid_r(2), grid_theta(ubound(grid_theta,1))]
+            else
+                map_coords(4,:) = [grid_r(2), grid_theta(find_loc(grid_theta, vtheta_bounds(1)) - 1)]
+            end if
             ! if (vtheta_bounds(1) .eq. 0.0d0) then
             !     map_coords(4,:) = [grid_r(2), grid_theta(ubound(grid_theta,1))]
             ! else
             !     map_coords(4,:) = [grid_r(2), grid_theta(find_loc(grid_theta, vtheta_bounds(1)) - 1)]
             ! end if
-            map_coords(4,:) = [grid_r(2), grid_theta(theta_loc)]
+            ! map_coords(5,:) = [grid_r(2), grid_theta(theta_loc)]
             theta_loc = find_loc(grid_theta, vtheta_bounds(1)) - size(grid_theta)/2 + 1
             if (theta_loc .lt. 1) then
                 theta_loc = size(grid_theta) + theta_loc
@@ -204,12 +209,17 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
             map_coords(1,:) = [grid_r(1), 0.0d0]
             map_coords(2,:) = [grid_r(2), vtheta_bounds(2)]
             map_coords(3,:) = [grid_r(2), vtheta_bounds(1)]
+            if (vtheta_bounds(2) .eq. grid_theta(ubound(grid_theta,1))) then
+                map_coords(4,:) = [grid_r(2), 0.0d0]
+            else
+                map_coords(4,:) = [grid_r(2), grid_theta(find_loc(grid_theta, vtheta_bounds(2)) + 1)]
+            end if
             ! if (vtheta_bounds(2) .eq. grid_theta(ubound(grid_theta,1))) then
             !     map_coords(4,:) = [grid_r(2), 0.0d0]
             ! else
             !     map_coords(4,:) = [grid_r(2), grid_theta(find_loc(grid_theta, vtheta_bounds(2)) + 1)]
             ! end if
-            map_coords(4,:) = [grid_r(2), grid_theta(theta_loc)]
+            ! map_coords(5,:) = [grid_r(2), grid_theta(theta_loc)]
             theta_loc = find_loc(grid_theta, vtheta_bounds(2)) + size(grid_theta)/2 - 1
             if (theta_loc .gt. size(grid_theta)) then
                 theta_loc = theta_loc - size(grid_theta)
@@ -272,8 +282,8 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
                 if (abs(vtheta_bounds(2) - 2*Pi) .lt. 1D-8) vtheta_bounds(2) = 0.0d0
 
                 map_coords(1,:) = [vr_bounds(1), vtheta_bounds(1)]
-                map_coords(2,:) = [vr_bounds(1), vtheta_bounds(2)]
-                map_coords(3,:) = [vr_bounds(2), vtheta_bounds(1)]
+                map_coords(2,:) = [vr_bounds(2), vtheta_bounds(1)]
+                map_coords(3,:) = [vr_bounds(1), vtheta_bounds(2)]
                 if (grid_r(find_loc(grid_r, vr_bounds(1)) - 1) .eq. 0.0d0) then
                     map_coords(4,:) = [grid_r(find_loc(grid_r, vr_bounds(1)) - 1), 0.0d0]
                 else   
@@ -289,8 +299,8 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
                 if (abs(vtheta_bounds(2) - 2*Pi) .lt. 1D-8) vtheta_bounds(2) = 0.0d0
 
                 map_coords(1,:) = [vr_bounds(1), vtheta_bounds(2)]
-                map_coords(2,:) = [vr_bounds(1), vtheta_bounds(1)]
-                map_coords(3,:) = [vr_bounds(2), vtheta_bounds(2)]
+                map_coords(2,:) = [vr_bounds(2), vtheta_bounds(2)]
+                map_coords(3,:) = [vr_bounds(1), vtheta_bounds(1)]
                 if (grid_r(find_loc(grid_r, vr_bounds(1)) - 1) .eq. 0.0d0) then
                     map_coords(4,:) = [grid_r(find_loc(grid_r, vr_bounds(1)) - 1), 0.0d0]
                 else   
@@ -310,11 +320,11 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
                 if (abs(vtheta_bounds(2) - 2*Pi) .lt. 1D-8) vtheta_bounds(2) = 0.0d0
 
                 map_coords(1,:) = [vr_bounds(2), vtheta_bounds(1)]
-                map_coords(2,:) = [vr_bounds(2), vtheta_bounds(2)]
+                map_coords(3,:) = [vr_bounds(2), vtheta_bounds(2)]
                 if (vr_bounds(1) .eq. 0.0d0) then
-                    map_coords(3,:) = [vr_bounds(1), 0.0d0]
+                    map_coords(2,:) = [vr_bounds(1), 0.0d0]
                 else    
-                    map_coords(3,:) = [vr_bounds(1), vtheta_bounds(1)]
+                    map_coords(2,:) = [vr_bounds(1), vtheta_bounds(1)]
                 end if
                 map_coords(4,:) = [grid_r(find_loc(grid_r, vr_bounds(2)) + 1), vtheta_bounds(1)]
                 if (vtheta_bounds(1) .eq. 0.0d0) then
@@ -326,11 +336,11 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
                 if (abs(vtheta_bounds(2) - 2*Pi) .lt. 1D-8) vtheta_bounds(2) = 0.0d0
 
                 map_coords(1,:) = [vr_bounds(2), vtheta_bounds(2)]
-                map_coords(2,:) = [vr_bounds(2), vtheta_bounds(1)]
+                map_coords(3,:) = [vr_bounds(2), vtheta_bounds(1)]
                 if (vr_bounds(1) .eq. 0.0d0) then
-                    map_coords(3,:) = [vr_bounds(1), 0.0d0]
+                    map_coords(2,:) = [vr_bounds(1), 0.0d0]
                 else    
-                    map_coords(3,:) = [vr_bounds(1), vtheta_bounds(2)]
+                    map_coords(2,:) = [vr_bounds(1), vtheta_bounds(2)]
                 end if
                 map_coords(4,:) = [grid_r(find_loc(grid_r, vr_bounds(2)) + 1), vtheta_bounds(1)]
                 if (vtheta_bounds(2) .eq. grid_theta(ubound(grid_theta,1))) then
@@ -416,9 +426,11 @@ subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vth
         total_p_y = total_p_y + b(i) * map_coords(i,1)*sin(map_coords(i,2))
         total_e = total_e + b(i) * map_coords(i,1)**2
     end do
-    total_p_x = total_p_x + b(4) * map_coords(5,1)*cos(map_coords(5,2))
-    total_p_y = total_p_y + b(4) * map_coords(5,1)*sin(map_coords(5,2))
-    total_e = total_e + b(4) * map_coords(5,1)**2
+    if (map_coords(5,1) .ne. -1.0) then 
+        total_p_x = total_p_x + b(4) * map_coords(5,1)*cos(map_coords(5,2))
+        total_p_y = total_p_y + b(4) * map_coords(5,1)*sin(map_coords(5,2))
+        total_e = total_e + b(4) * map_coords(5,1)**2
+    end if
 
     if (abs(total_p_x) - abs(delta_m*vr_prime*cos(vtheta_prime)) .gt. 1D-12) then 
         print *, "remapping x_momentum not conserved"
