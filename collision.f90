@@ -208,8 +208,8 @@ program collision
         if (method .eq. 1 .or. method .eq. 2) then
             ! Build cdf.
             cdf = 0.0d0
-            call build_cdf(n_r, n_theta, vdf, cdf)
-            nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.0d0 * sum(grid_r * dr * dtheta)/n_r)) ! beta^3 avg
+            call build_cdf(n_r, n_theta, n_z, vdf, cdf)
+            nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.5d0 * sum(grid_r * dr * dtheta * dz)/n_r)) ! beta^3 avg
 
             ! Calculate delta_m. Using psuedo-Maxwell molecules.
             n_hat_neg = sum(vdf, mask=vdf .lt. 0.0d0)
@@ -219,8 +219,8 @@ program collision
 
             do j = 1,int(nc)
                 ! Calculate pre-collision velocities.
-                call precollision(grid_r, grid_theta, n_theta, cdf, vr1, vtheta1)
-                call precollision(grid_r, grid_theta, n_theta, cdf, vr2, vtheta2)
+                call precollision(grid_r, grid_theta, grid_z, n_theta, n_r, cdf, vr1, vtheta1, vz1)
+                call precollision(grid_r, grid_theta, grid_z, n_theta, n_r, cdf, vr2, vtheta2, vz2)
 
                 ! If we select the same velocity, cycle.
                 if ((vr1 .eq. vr2) .and. (vtheta1 .eq. vtheta2)) cycle

@@ -7,38 +7,44 @@ double precision, parameter :: Pi = 3.14159265358979323d0
 contains
 
 ! ------------------ COLLIDE SUBROUTINES ------------------ !
-subroutine build_cdf(n_r, n_theta, vdf, cdf)
+subroutine build_cdf(n_r, n_theta, n_z, vdf, cdf)
     implicit none
-    double precision, allocatable, intent(in) :: vdf(:,:)
-    integer, intent(in) :: n_r, n_theta
+    double precision, allocatable, intent(in) :: vdf(:,:,:)
+    integer, intent(in) :: n_r, n_theta, n_z
     double precision, allocatable, intent(inout) :: cdf(:)
 
-    integer :: i, j, index
+    integer :: i, j, k, index
 
     ! Build cumulative distribution function.
-    cdf(1) = abs(vdf(1, 1))
+    cdf(1) = abs(vdf(1, 1, 1))
     index = 2
 
-    do i = 2,n_r
-        do j = 1,n_theta
-            cdf(index) = cdf(index-1) + abs(vdf(i, j))
+    do k = 1,n_z
+        if (k .ne. 1) then 
+            cdf(index) = cdf(index-1) + abs(vdf(i, j, k))
             index = index + 1
+        end if
+        do i = 2,n_r
+            do j = 1,n_theta
+                cdf(index) = cdf(index-1) + abs(vdf(i, j, k))
+                index = index + 1
+            end do
         end do
     end do
 
 end subroutine build_cdf
 
 ! Deplete mass from vdf and calculate pre-collision velocity index.
-subroutine precollision(grid_r, grid_theta, n_theta, cdf, vr, vtheta)
+subroutine precollision(grid_r, grid_theta, grid_z, n_theta, n_r, cdf, vr, vtheta, vz)
     implicit none
-    double precision, allocatable, intent(in) :: grid_r(:), grid_theta(:)
-    integer, intent(in) :: n_theta ! size of grid
+    double precision, allocatable, intent(in) :: grid_r(:), grid_theta(:), grid_z(:)
+    integer, intent(in) :: n_r, n_theta ! size of grid
     double precision, allocatable, intent(in) :: cdf(:)
-    double precision, intent(out) :: vr, vtheta
+    double precision, intent(out) :: vr, vtheta, vz
 
     double precision :: random_num, max_cdf, find ! variables for finding random index
     integer :: l ! location of velocity
-    integer :: i, j ! index to r, theta
+    integer :: i, j, k ! index to r, theta
 
     ! Calculate value to search for in cdf to determine vr, thetav.
     call random_init(.false., .true.)
@@ -49,9 +55,10 @@ subroutine precollision(grid_r, grid_theta, n_theta, cdf, vr, vtheta)
     ! Find velocity values from index in cdf and deplete delta_m.
     l = binary_search(cdf, find)
 
-    if (l .eq. 1) then
+    if ((l .eq. 1) .or. (l+1 .eq. n_theta*(n_r - 1) + 1)) then ! STUCK HERE
         i = 1
         j = 1
+        k = (l - 1)/(n_theta*(n_r - 1) + 1) + 1
     else
         l = l - 2
         i = l/n_theta + 2
@@ -60,6 +67,7 @@ subroutine precollision(grid_r, grid_theta, n_theta, cdf, vr, vtheta)
 
     vr = grid_r(i)
     vtheta = grid_theta(j)
+    vz = grid_z(k)
 end subroutine precollision
 
 ! Given two points, calculate and return post collision velocity.
