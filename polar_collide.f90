@@ -563,14 +563,16 @@ pure function calc_x_momentum(grid_r, grid_theta, vdf) result(x_momentum)
     implicit none
     double precision, allocatable, intent(in) :: grid_r(:)
     double precision, allocatable, intent(in) :: grid_theta(:)
-    double precision, allocatable, intent(in) :: vdf(:,:)
+    double precision, allocatable, intent(in) :: vdf(:,:,:)
     double precision :: x_momentum
-    integer :: i, j
+    integer :: i, j, k
 
     x_momentum = 0.0d0
-    do j = 1,size(vdf,2)
-        do i = 1,size(vdf,1)
-            x_momentum = x_momentum + vdf(i, j) * grid_r(i) * cos(grid_theta(j))
+    do k = 1,size(vdf,3)
+        do j = 1,size(vdf,2)
+            do i = 1,size(vdf,1)
+                x_momentum = x_momentum + vdf(i, j, k) * grid_r(i) * cos(grid_theta(j))
+            end do
         end do
     end do
 end function calc_x_momentum
@@ -579,65 +581,93 @@ pure function calc_y_momentum(grid_r, grid_theta, vdf) result(y_momentum)
     implicit none
     double precision, allocatable, intent(in) :: grid_r(:)
     double precision, allocatable, intent(in) :: grid_theta(:)
-    double precision, allocatable, intent(in) :: vdf(:,:)
+    double precision, allocatable, intent(in) :: vdf(:,:,:)
     double precision :: y_momentum
-    integer :: i, j
+    integer :: i, j, k
 
     y_momentum = 0.0d0
-    do j = 1,size(vdf,2)
-        do i = 1,size(vdf,1)
-            y_momentum = y_momentum + vdf(i, j) * grid_r(i) * sin(grid_theta(j))
+    do k = 1,size(vdf,3)
+        do j = 1,size(vdf,2)
+            do i = 1,size(vdf,1)
+                y_momentum = y_momentum + vdf(i, j, k) * grid_r(i) * sin(grid_theta(j))
+            end do
         end do
     end do
 end function calc_y_momentum
 
-pure function calc_energy(grid_r, grid_theta, vdf) result(energy)
+pure function calc_z_momentum(grid_z, vdf) result(z_momentum)
+    implicit none
+    double precision, allocatable, intent(in) :: grid_z(:)
+    double precision, allocatable, intent(in) :: vdf(:,:,:)
+    double precision :: z_momentum
+    integer :: i, j, k
+
+    z_momentum = 0.0d0
+    do k = 1,size(vdf,3)
+        do j = 1,size(vdf,2)
+            do i = 1,size(vdf,1)
+                z_momentum = z_momentum + vdf(i, j, k) * grid_z(k)
+            end do
+        end do
+    end do
+end function calc_z_momentum
+
+pure function calc_energy(grid_r, grid_theta, grid_z, vdf) result(energy)
     implicit none
     double precision, allocatable, intent(in) :: grid_r(:)
     double precision, allocatable, intent(in) :: grid_theta(:)
-    double precision, allocatable, intent(in) :: vdf(:,:)
+    double precision, allocatable, intent(in) :: grid_z(:)
+    double precision, allocatable, intent(in) :: vdf(:,:,:)
     double precision :: energy
-    integer :: i, j
-    double precision :: vector(2)
+    integer :: i, j, z
+    double precision :: vector(3)
 
     energy = 0.0d0
-    do j = 1,size(vdf,2)
-        do i = 1,size(vdf,1)
-            vector = (/ grid_r(i)*cos(grid_theta(j)), grid_r(i)*sin(grid_theta(j)) /)
-            energy = energy + vdf(i, j) * dot_product(vector, vector)
+    do z = 1,size(vdf,3)
+        do j = 1,size(vdf,2)
+            do i = 1,size(vdf,1)
+                vector = (/ grid_r(i)*cos(grid_theta(j)), grid_r(i)*sin(grid_theta(j)), grid_z(z) /)
+                energy = energy + vdf(i, j, z) * dot_product(vector, vector)
+            end do
         end do
     end do
 end function calc_energy
 
 pure function calc_entropy(vdf) result(entropy)
     implicit none
-    double precision, allocatable, intent(in) :: vdf(:,:)
+    double precision, allocatable, intent(in) :: vdf(:,:,:)
     double precision :: entropy
-    integer :: i, j
+    integer :: i, j, k
 
     entropy = 0.0d0
-    do j = 1,size(vdf,2)
-        do i = 1,size(vdf,1)
-            if (vdf(i, j) .ne. 0.0d0) entropy = entropy + abs(vdf(i, j)) * log(abs(vdf(i, j)))
+    do k = 1,size(vdf,3)
+        do j = 1,size(vdf,2)
+            do i = 1,size(vdf,1)
+                if (vdf(i, j, k) .ne. 0.0d0) entropy = entropy + abs(vdf(i, j, k)) * log(abs(vdf(i, j, k)))
+            end do
         end do
     end do
     entropy = 1.0 - entropy * (1)/sum(vdf)
 
 end function calc_entropy
 
-pure function calc_moment(vdf, grid_r, n) result(moment)
+pure function calc_moment(vdf, grid_r, grid_z, n) result(moment)
     implicit none
-    double precision, allocatable, intent(in) :: vdf(:,:)
+    double precision, allocatable, intent(in) :: vdf(:,:,:)
     double precision, allocatable, intent(in) :: grid_r(:)
+    double precision, allocatable, intent(in) :: grid_z(:)
     integer, intent(in) :: n
-    double precision :: moment, vr
-    integer :: i, j
+    double precision :: moment, vr, vz
+    integer :: i, j, k
 
     moment = 0.0d0
-    do j = 1,size(vdf,2)
-        do i = 1,size(vdf,1)
-            vr = grid_r(i)
-            moment = moment + vr**n * vdf(i, j)
+    do k = 1,size(vdf,3)
+        do j = 1,size(vdf,2)
+            do i = 1,size(vdf,1)
+                vr = grid_r(i)
+                vz = grid_z(k)
+                moment = moment + (vr**n + vz**n) * vdf(i, j, k)
+            end do
         end do
     end do
 

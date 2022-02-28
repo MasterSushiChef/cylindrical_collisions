@@ -11,13 +11,16 @@ program collision
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
     double precision, parameter :: vr_max = 3.5d0
+    double precision, parameter :: vz_min = -3.5d0
+    double precision, parameter :: vz_max = 3.5d0
     integer, parameter :: n_r = 8 ! number of radial velocity grid points
     integer, parameter :: n_theta = 40 ! number of theta grid points
+    integer, parameter :: n_z = 15 ! number of z grid points
     integer, parameter :: n_t = 50 ! number of timesteps
     double precision, parameter :: m_hat = 1
-    double precision, parameter :: t_hat = 0.2d0
+    double precision, parameter :: t_hat = 0.2d0 ! computational time step
     double precision, parameter :: ndens_hat = 1
-    double precision, parameter :: temp_hat = 1.0
+    double precision, parameter :: temp_hat = 1.0 ! temperature
     double precision, parameter :: kn = 1.0d0
     
     double precision, parameter :: k0 = 0.6d0
@@ -29,36 +32,38 @@ program collision
     character(len = 6) :: x1
     character(len = 15) :: file_name
 
-    integer :: i, j, t, x, y, vr, vtheta ! loop variables
+    integer :: i, j, t, x, y, vr, vtheta, vz ! loop variables
 
     double precision, allocatable :: grid_r(:) ! radial velocities
     double precision, allocatable :: grid_theta(:) ! values from 0 to 360 - delta_theta converted to radians
-    double precision, allocatable :: vdf(:,:) ! velocity distribution function
+    double precision, allocatable :: grid_z(:) ! vertical velocities
+    double precision, allocatable :: vdf(:,:,:) ! velocity distribution function
     double precision, allocatable :: cdf(:) ! cumulative distribution function
     ! double precision, allocatable :: equal_area_remapping(:) ! points to separate equal area remappings
 
     double precision, allocatable :: mass_collector(:,:)
     double precision :: initial_zero_point
 
-    double precision :: map_coords(5,2) ! coordinates on velocity grid to map post collision mass back onto
-    double precision :: dr, dtheta
+    double precision :: map_coords(7,3) ! coordinates on velocity grid to map post collision mass back onto
+    double precision :: dr, dtheta, dz
     double precision :: nc ! number of collisions
     double precision :: n_hat_neg
 
-    double precision :: vr1, vr2, vtheta1, vtheta2! pre collision velocities
-    double precision :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime ! post collision velocities
+    double precision :: vr1, vr2, vtheta1, vtheta2, vz1, vz2 ! pre collision velocities
+    double precision :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime, vz1_prime, vz2_prime ! post collision velocities
     double precision :: delta_m1, delta_m2 ! colliding mass
-    double precision :: mass1, x_momentum1, y_momentum1, energy1
-    double precision :: mass2, x_momentum2, y_momentum2, energy2
+    double precision :: mass1, x_momentum1, y_momentum1, z_momentum1, energy1
+    double precision :: mass2, x_momentum2, y_momentum2, z_momentum2, energy2
     double precision :: entropy(n_t+1), moment(n_t+1), neg_mass(n_t+1), zero_point(n_t+1)
     integer :: cutoff
 
     allocate(grid_r(n_r))
     allocate(grid_theta(n_theta))
+    allocate(grid_z(n_z))
     ! allocate(equal_area_remapping(n_r-1))
-    allocate(vdf(n_r, n_theta))
+    allocate(vdf(n_r, n_theta, n_z))
     allocate(mass_collector(n_r, n_theta))
-    allocate(cdf(n_r * n_theta - (n_theta - 1)))
+    allocate(cdf((n_r * n_theta - (n_theta - 1)) * n_z))
 
     ! Initialize matrices to collect statistics.
     mass_collector = 0.0d0
@@ -74,9 +79,15 @@ program collision
         grid_theta(i) = grid_theta(i-1) + (2*Pi)/n_theta
     end do
 
+    grid_z(1) = vz_min
+    do i = 2,n_z
+        grid_z(i) = grid_z(i-1) + (vz_max - vz_min)/(n_z - 1)
+    end do
+
     dr = grid_r(2) - grid_r(1)
     dtheta = grid_theta(2) - grid_theta(1)
-
+    dz = grid_z(2) - grid_z(1)
+    print *, dz
     ! Calculate values to have equal area remappings.
     ! do i = 1,n_r-1
     !     equal_area_remapping(i) = sqrt(0.5 * grid_r(i+1)**2 + 0.5 * grid_r(i)**2)
@@ -86,17 +97,18 @@ program collision
     vdf = 0.0d0
     ! vdf(4,1) = 4.0
     ! vdf(4,21) = 4.0
-    vdf(1,1) = exp(0.0d0) * (m_hat/temp_hat) * Pi * (dr/2)**2
-    do vr = 2,size(grid_r)
-        do vtheta = 1,size(grid_theta)
-            vdf(vr, vtheta) = exp(-((grid_r(vr)*cos(grid_theta(vtheta)))**2 + &
-                (grid_r(vr)*sin(grid_theta(vtheta)))**2) * (m_hat/temp_hat))
-            vdf(vr, vtheta) = vdf(vr, vtheta) * grid_r(vr) * dr * dtheta
+    vdf(1,1,:) = exp(-grid_z**2) * (m_hat/temp_hat) * (Pi * (dr/2)**2 * dz)
+    do vz = 1,size(grid_z) 
+        do vr = 2,size(grid_r)
+            do vtheta = 1,size(grid_theta)
+                vdf(vr, vtheta, vz) = exp(-(grid_r(vr)**2 + grid_z(vz)**2) * (m_hat/temp_hat))
+                vdf(vr, vtheta, vz) = vdf(vr, vtheta, vz) * grid_r(vr) * dr * dtheta * dz
+            end do
         end do
     end do
-    vdf = vdf * ndens_hat * (m_hat/(Pi*temp_hat))**1.0
+    vdf = vdf * ndens_hat * (m_hat/(Pi*temp_hat))**1.5
     vdf = vdf/sum(vdf)
-    initial_zero_point = vdf(1,1)
+    initial_zero_point = vdf(1, 1, (n_z+1)/2)
     print *, (initial_zero_point)
 
     if (method .eq. 2) then 
@@ -133,14 +145,16 @@ program collision
     mass1 = sum(vdf)
     x_momentum1 = calc_x_momentum(grid_r, grid_theta, vdf)
     y_momentum1 = calc_y_momentum(grid_r, grid_theta, vdf)
-    energy1 = calc_energy(grid_r, grid_theta, vdf)
+    z_momentum1 = calc_z_momentum(grid_z, vdf)
+    energy1 = calc_energy(grid_r, grid_theta, grid_z, vdf)
     entropy(1) = calc_entropy(vdf)
-    moment(1) = calc_moment(vdf, grid_r, 8)
+    moment(1) = calc_moment(vdf, grid_r, grid_z, 8)
     neg_mass(1) = abs(sum(vdf, mask=vdf .lt. 0.0d0))/sum(vdf)
-    zero_point(1) = vdf(1, 1)
+    zero_point(1) = vdf(1, 1, (n_z+1)/2)
     print *, "Initial mass: ", mass1
     print *, "Initial x-momentum: ", x_momentum1
     print *, "Initial y-momentum: ", y_momentum1
+    print *, "Initial z-momentum: ", z_momentum1
     print *, "Initial energy: ", energy1
     print *, ""
 
@@ -225,9 +239,9 @@ program collision
             end do
 
             entropy(t+1) = calc_entropy(vdf)
-            moment(t+1) = calc_moment(vdf, grid_r, 8)
+            moment(t+1) = calc_moment(vdf, grid_r, grid_z, 8)
             neg_mass(t+1)  = abs(sum(vdf, mask=vdf .lt. 0.0d0))/sum(vdf)
-            zero_point(t+1) = vdf(1, 1)
+            zero_point(t+1) = vdf(1, 1, (n_z+1)/2)
 
             ! Write out vdf data for post processing.
             write (x1, fmt) t
@@ -245,7 +259,7 @@ program collision
     ! Write data out for post processing in Python.
     open(unit=21, file="vdf.txt", action="write", status="old")
     do i = 1,n_r
-        write(21,*) vdf(i,:)
+        write(21,*) vdf(i,:,(n_z+1)/2)
     end do
 
     open(unit=22, file="entropy_theta50_6.dat", access="stream")
@@ -268,7 +282,7 @@ program collision
     mass2 = sum(vdf)
     x_momentum2 = calc_x_momentum(grid_r, grid_theta, vdf)
     y_momentum2 = calc_y_momentum(grid_r, grid_theta, vdf)
-    energy2 = calc_energy(grid_r, grid_theta, vdf)
+    energy2 = calc_energy(grid_r, grid_theta, grid_z, vdf)
     print *, ""
     print *, "Mass after collisions: ", mass2
     print *, "x-momentum after collisions: ", x_momentum2
@@ -282,8 +296,8 @@ program collision
     print *, "y-momentum percent error: ", (y_momentum2 - y_momentum1)/y_momentum1 * 100
     print *, "Energy percent error: ", (energy2 - energy1)/energy1 * 100
     print *, "Zero point initial: ", initial_zero_point
-    print *, "Zero point after: ", vdf(1, 1)
-    print *, "Zero point percent change: ", (vdf(1,1) - initial_zero_point)/initial_zero_point * 100
+    print *, "Zero point after: ", vdf(1, 1, (n_z+1)/2)
+    print *, "Zero point percent change: ", (vdf(1, 1, (n_z+1)/2) - initial_zero_point)/initial_zero_point * 100
     print *, "Negative mass in vdf: ", sum(vdf, mask=vdf .lt. 0.0d0)
 
     deallocate(vdf)
