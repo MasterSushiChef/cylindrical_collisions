@@ -11,9 +11,9 @@ program collision
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
     double precision, parameter :: vr_max = 3.5d0
-    integer, parameter :: n_r = 8 ! number of radial velocity grid points
+    integer, parameter :: n_r = 11 ! number of radial velocity grid points
     integer, parameter :: n_theta = 40 ! number of theta grid points
-    integer, parameter :: n_t = 50 ! number of timesteps
+    integer, parameter :: n_t = 100 ! number of timesteps
     double precision, parameter :: m_hat = 1
     double precision, parameter :: t_hat = 0.2d0
     double precision, parameter :: ndens_hat = 1
@@ -21,7 +21,7 @@ program collision
     double precision, parameter :: kn = 1.0d0
     
     double precision, parameter :: k0 = 0.6d0
-    double precision, parameter :: crms = 5D-3
+    double precision, parameter :: crms = 4D-3
 
     ! select method used to deplete: 0 - N^2, 1 - Full Monte Carlo, 2 - Monte Carlo/N^2 Hybrid
     integer, parameter :: method = 1
@@ -84,12 +84,10 @@ program collision
 
     ! Build Maxwellian velocity distribution function.
     vdf = 0.0d0
-    ! vdf(4,1) = 4.0
-    ! vdf(4,21) = 4.0
-    vdf(1,1) = exp(0.0d0) * (m_hat/temp_hat) * Pi * (dr/2)**2
+    vdf(1,1) = exp(-(1.0**2 + 0.0**2)) * (m_hat/temp_hat) * Pi * (dr/2)**2
     do vr = 2,size(grid_r)
         do vtheta = 1,size(grid_theta)
-            vdf(vr, vtheta) = exp(-((grid_r(vr)*cos(grid_theta(vtheta)))**2 + &
+            vdf(vr, vtheta) = exp(-((grid_r(vr)*cos(grid_theta(vtheta)) - 1.0)**2 + &
                 (grid_r(vr)*sin(grid_theta(vtheta)))**2) * (m_hat/temp_hat))
             vdf(vr, vtheta) = vdf(vr, vtheta) * grid_r(vr) * dr * dtheta
         end do
@@ -106,14 +104,14 @@ program collision
     end if
 
     ! vdf(2,1) = 0.5d0
-    ! vdf(2,21) = 0.5d0
+    ! vdf(2,6) = 0.5d0
 
     ! Build BKW velocity distribution function.
     ! vdf(1,:) = 0.0d0
-    ! vdf(1,1) = 1/((2*k0) * (Pi*k0**(1.5d0))) * (5*k0 - 3) * Pi * (dr/2)**2
+    ! vdf(1,1) = 1/((2*k0) * (Pi*k0**(1.0))) * (5*k0 - 3) * Pi * (dr/2)**2
     ! do vtheta = 1,size(grid_theta)
     !   do vr = 2,size(grid_r)
-    !     vdf(vr, vtheta) = (1/((2*k0) * (Pi*k0**(1.5d0))) * (5*k0 - 3  + (2*(1-k0))/(k0) * (grid_r(vr)**2 + &
+    !     vdf(vr, vtheta) = (1/((2*k0) * (Pi*k0**(1.0))) * (5*k0 - 3  + (2*(1-k0))/(k0) * (grid_r(vr)**2 + &
     !     (grid_r(vr)**2)) * exp(-((grid_r(vr)**2 + (grid_r(vr)**2)**2)/k0))))
     !     vdf(vr, vtheta) = vdf(vr, vtheta) * dr * dtheta * grid_r(vr) ! how accurate is r dr dtheta compare to real area?
     !   end do
