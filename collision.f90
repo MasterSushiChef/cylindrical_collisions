@@ -209,6 +209,7 @@ program collision
             ! Build cdf.
             cdf = 0.0d0
             call build_cdf(n_r, n_theta, n_z, vdf, cdf)
+            print *, cdf
             nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.5d0 * sum(grid_r * dr * dtheta * dz)/n_r)) ! beta^3 avg
 
             ! Calculate delta_m. Using psuedo-Maxwell molecules.

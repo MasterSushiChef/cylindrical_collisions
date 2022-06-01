@@ -20,7 +20,9 @@ subroutine build_cdf(n_r, n_theta, n_z, vdf, cdf)
     index = 2
 
     do k = 1,n_z
-        if (k .ne. 1) then 
+        if (k .ne. 1) then
+            i = 1
+            j = 1
             cdf(index) = cdf(index-1) + abs(vdf(i, j, k))
             index = index + 1
         end if
