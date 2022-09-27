@@ -32,7 +32,7 @@ program collision
     character(len = 6) :: x1
     character(len = 15) :: file_name
 
-    integer :: i, j, t, x, y, vr, vtheta, vz ! loop variables
+    integer :: i, j, t, vr, vtheta, vz ! loop variables
 
     double precision, allocatable :: grid_r(:) ! radial velocities
     double precision, allocatable :: grid_theta(:) ! values from 0 to 360 - delta_theta converted to radians
@@ -159,52 +159,6 @@ program collision
     print *, ""
 
     do t = 1,n_t
-        if (method .eq. 0 .or. method .eq. 2) then
-            do y = 1,n_theta
-                do x = cutoff+1,n_r
-                    do j = 1,n_theta
-                        do i = cutoff+1,n_r
-                            ! Calculate delta_m. Psuedo-Maxwell molecules.
-                            if (x .eq. i .and. y .eq. j) cycle
-                            if (vdf(i, j) .eq. 0.0d0 .or. vdf(x, y) .eq. 0.0d0) cycle
-                            delta_m1 = 0.5 * t_hat * vdf(x, y) * vdf(i, j)
-                            delta_m2 = delta_m1
-
-                            ! Pre-collision velocities.
-                            vr1 = grid_r(x)
-                            vtheta1 = grid_theta(y)
-                            vr2 = grid_r(i)
-                            vtheta2 = grid_theta(j)
-
-                            ! Collide two particles.
-                            call collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime)
-
-                            ! Deplete from vdf.
-                            call deplete(vdf, grid_r, grid_theta, vr1, vr2, vtheta1, vtheta2, delta_m1, delta_m2)
-
-                            ! Find points to map mass back to and add it to vdf for both points.
-                            call find_points(vr1_prime, vtheta1_prime, grid_r, grid_theta, map_coords)
-                            call replenish(map_coords, vdf, delta_m1, grid_r, grid_theta, vr1_prime, vtheta1_prime)
-                            call find_points(vr2_prime, vtheta2_prime, grid_r, grid_theta, map_coords)
-                            call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, vr2_prime, vtheta2_prime)
-                        end do
-                    end do
-                end do
-            end do
-
-            print *, t
-
-            entropy(t+1) = calc_entropy(vdf)
-            moment(t+1) = calc_moment(vdf, grid_r, 8)
-            neg_mass(t+1) = abs(sum(vdf, mask=vdf .lt. 0.0d0))/sum(vdf)
-
-            ! Write out vdf data for post processing.
-            write (x1, fmt) t
-            file_name = "vdf_" // trim(x1) // ".dat"
-            open(unit=20, file=file_name, access="stream")
-            write(20) vdf
-            close(20)
-        end if
         if (method .eq. 1 .or. method .eq. 2) then
             ! Build cdf.
             cdf = 0.0d0
@@ -227,16 +181,17 @@ program collision
                 if ((vr1 .eq. vr2) .and. (vtheta1 .eq. vtheta2)) cycle
 
                 ! Collide two particles.
-                call collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime)
+                call collide(vr1, vr2, vtheta1, vtheta2, vz1, vz2, vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime, &
+                    vz1_prime, vz2_prime)
                 
                 ! Multiply delta_m by signs to determine depletion direction and deplete. (full Monte Carlo).
-                call deplete(vdf, grid_r, grid_theta, vr1, vr2, vtheta1, vtheta2, delta_m1, delta_m2)
+                call deplete(vdf, grid_r, grid_theta, grid_z, vr1, vr2, vtheta1, vtheta2, vz1, vz2, delta_m1, delta_m2)
 
                 ! Find points to map mass back to and add it to vdf for both points.
                 call find_points(vr1_prime, vtheta1_prime, grid_r, grid_theta, map_coords)
-                call replenish(map_coords, vdf, delta_m1, grid_r, grid_theta, vr1_prime, vtheta1_prime)
+                call replenish(map_coords, vdf, delta_m1, grid_r, grid_theta, grid_z, vr1_prime, vtheta1_prime, vz1_prime)
                 call find_points(vr2_prime, vtheta2_prime, grid_r, grid_theta, map_coords)
-                call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, vr2_prime, vtheta2_prime)
+                call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, grid_z, vr2_prime, vtheta2_prime, vz2_prime)
             end do
 
             entropy(t+1) = calc_entropy(vdf)
@@ -283,6 +238,7 @@ program collision
     mass2 = sum(vdf)
     x_momentum2 = calc_x_momentum(grid_r, grid_theta, vdf)
     y_momentum2 = calc_y_momentum(grid_r, grid_theta, vdf)
+    z_momentum2 = calc_z_momentum(grid_z, vdf)
     energy2 = calc_energy(grid_r, grid_theta, grid_z, vdf)
     print *, ""
     print *, "Mass after collisions: ", mass2

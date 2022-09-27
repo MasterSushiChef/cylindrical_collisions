@@ -73,59 +73,74 @@ subroutine precollision(grid_r, grid_theta, grid_z, n_theta, n_r, cdf, vr, vthet
 end subroutine precollision
 
 ! Given two points, calculate and return post collision velocity.
-subroutine collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime)
+subroutine collide(vr1, vr2, vtheta1, vtheta2, vz1, vz2, vr1_prime, vr2_prime, &
+    vtheta1_prime, vtheta2_prime, vz1_prime, vz2_prime)
     implicit none
-    double precision, intent(in) :: vr1, vr2, vtheta1, vtheta2 ! pre collision velocity
-    double precision, intent(out) :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime ! post colision velocity
+    double precision, intent(in) :: vr1, vr2, vtheta1, vtheta2, vz1, vz2 ! pre collision velocity
+    double precision, intent(out) :: vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime, &
+        vz1_prime, vz2_prime ! post colision velocity
 
-    double precision :: vx1, vy1, vx2, vy2 ! pre collision velocities
+    double precision :: vx1, vy1, vx2, vy2, vz1_f, vz2_f ! pre collision velocities
     double precision :: vx1_prime, vy1_prime, vx2_prime, vy2_prime ! post collision velocities
     double precision :: g ! relative velocity magnitude
-    double precision :: wx, wy ! center of mass velocity
-    double precision :: gx_prime, gy_prime
-    double precision :: rf, phi ! collision sphere rotation angles
+    double precision :: wx, wy, wz ! center of mass velocity
+    double precision :: gx_prime, gy_prime, gz_prime
+    double precision :: rf, phi, cos_theta, sin_theta ! collision sphere rotation angles
     double precision :: delta_m = 1.3503331271824742D-006 ! arbitrary
-    double precision :: p_x1, p_y1, p_x2, p_y2, e_1, e_2
+    double precision :: p_x1, p_y1, p_z1, p_x2, p_y2, p_z2, e_1, e_2
     
     ! Precalculate x, y velocities.
     vx1 = vr1 * cos(vtheta1)
     vy1 = vr1 * sin(vtheta1)
     vx2 = vr2 * cos(vtheta2)
     vy2 = vr2 * sin(vtheta2)
+    vz1_f = vz1 ! the _f represents the variable in the function since duplicates not allowed.
+    vz2_f = vz2 
     if (abs(vx1) .lt. 1D-6) vx1 = 0.0
     if (abs(vy1) .lt. 1D-6) vy1 = 0.0
     if (abs(vx2) .lt. 1D-6) vx2 = 0.0
     if (abs(vy2) .lt. 1D-6) vy2 = 0.0
+    if (abs(vz1) .lt. 1D-6) vz1_f = 0.0
+    if (abs(vz2) .lt. 1D-6) vz2_f = 0.0
 
     p_x1 = delta_m * (vx1 + vx2)
     p_y1 = delta_m * (vy1 + vy2)
-    e_1 = vx1**2 + vy1**2 + vx2**2 + vy2**2
+    p_z1 = delta_m * (vz1 + vz2)
+    e_1 = vx1**2 + vy1**2 + vx2**2 + vy2**2 + vz1**2 + vz2**2
 
     ! Calculate relative velocity magnitude and center of mass velocity of collision pair.
-    g = sqrt((vx1 - vx2)**2 + (vy1 - vy2)**2)
+    g = sqrt((vx1 - vx2)**2 + (vy1 - vy2)**2 + (vz1 - vz2)**2)
     wx = 0.5*(vx1 + vx2)
     wy = 0.5*(vy1 + vy2)
+    wz = 0.5*(vz1 + vz2)
 
     ! Calculate scattering angle.
     call random_init(.false., .true.)
     call random_number(rf)
     phi = 2*Pi*rf
+    cos_theta = 2*rf - 1
+    sin_theta = sqrt(1 - cos_theta**2)
 
     ! Calculate post coliision velocities in x,y.
-    gx_prime = 0.5 * g*cos(phi)
-    gy_prime = 0.5 * g*sin(phi)
+    gx_prime = 0.5 * g*sin_theta*cos(phi)
+    gy_prime = 0.5 * g*sin_theta*sin(phi)
+    gz_prime = 0.5 * g*cos_theta
 
     vx1_prime = wx + gx_prime
     vx2_prime = wx - gx_prime
     vy1_prime = wy + gy_prime
     vy2_prime = wy - gy_prime
+    vz1_prime = wz + gz_prime
+    vz2_prime = wz - gz_prime
 
     p_x2 = delta_m * (vx1_prime + vx2_prime)
     p_y2 = delta_m * (vy1_prime + vy2_prime)
-    e_2 = vx1_prime**2 + vy1_prime**2 + vx2_prime**2 + vy2_prime**2
+    p_z2 = delta_m * (vz1_prime + vz2_prime)
+    e_2 = vx1_prime**2 + vy1_prime**2 + vx2_prime**2 + vy2_prime**2 + vz1_prime**2 + vz2_prime**2
 
     if (abs(p_x2 - p_x1) .gt. 1D-12) print *, "collision momentum x not conserved"
     if (abs(p_y2 - p_y1) .gt. 1D-12) print *, "collision momentum y not conserved"
+    if (abs(p_z2 - p_z1) .gt. 1D-12) print *, "collision momentum z not conserved"
     if (abs(e_2 - e_1) .gt. 1D-12) print *, "collision energy not conserved"
 
     ! Convert Cartesian to polar coordinates.
@@ -139,29 +154,32 @@ subroutine collide(vr1, vr2, vtheta1, vtheta2, vr1_prime, vr2_prime, vtheta1_pri
     if (vtheta2_prime .lt. 0) vtheta2_prime = vtheta2_prime + 2*Pi
 end subroutine collide
 
-subroutine deplete(vdf, grid_r, grid_theta, vr1, vr2, vtheta1, vtheta2, delta_m1, delta_m2)
+subroutine deplete(vdf, grid_r, grid_theta, grid_z, vr1, vr2, vtheta1, vtheta2, &
+    vz1, vz2, delta_m1, delta_m2)
     implicit none
-    double precision, allocatable, intent(inout) :: vdf(:,:)
-    double precision, allocatable, intent(in) :: grid_r(:), grid_theta(:)
-    double precision, intent(in) :: vr1, vr2, vtheta1, vtheta2
+    double precision, allocatable, intent(inout) :: vdf(:,:,:)
+    double precision, allocatable, intent(in) :: grid_r(:), grid_theta(:), grid_z(:)
+    double precision, intent(in) :: vr1, vr2, vtheta1, vtheta2, vz1, vz2
     double precision, intent(inout) :: delta_m1, delta_m2
-    integer :: vr1_idx, vr2_idx, vtheta1_idx, vtheta2_idx
+    integer :: vr1_idx, vr2_idx, vtheta1_idx, vtheta2_idx, vz1_idx, vz2_idx
     integer :: sign_one, sign_two
 
     vr1_idx = find_loc(grid_r, vr1)
     vr2_idx = find_loc(grid_r, vr2)
     vtheta1_idx = find_loc(grid_theta, vtheta1)
     vtheta2_idx = find_loc(grid_theta, vtheta2)
+    vz1_idx = find_loc(grid_z, vz1)
+    vz2_idx = find_loc(grid_z, vz2)
 
     ! Calculate proper direction to deplete mass.
-    sign_one = int(sign(1.0d0, vdf(vr1_idx, vtheta1_idx)))
-    sign_two = int(sign(1.0d0, vdf(vr2_idx, vtheta2_idx)))
+    sign_one = int(sign(1.0d0, vdf(vr1_idx, vtheta1_idx, vz1_idx)))
+    sign_two = int(sign(1.0d0, vdf(vr2_idx, vtheta2_idx, vz2_idx)))
     delta_m1 = abs(delta_m1) * sign_one * sign_two
     delta_m2 = abs(delta_m2) * sign_one * sign_two
 
     ! Deplete from vdf.
-    vdf(vr1_idx, vtheta1_idx) = vdf(vr1_idx, vtheta1_idx) - delta_m1
-    vdf(vr2_idx, vtheta2_idx) = vdf(vr2_idx, vtheta2_idx) - delta_m2
+    vdf(vr1_idx, vtheta1_idx, vz1_idx) = vdf(vr1_idx, vtheta1_idx, vz1_idx) - delta_m1
+    vdf(vr2_idx, vtheta2_idx, vz2_idx) = vdf(vr2_idx, vtheta2_idx, vz2_idx) - delta_m2
 end subroutine deplete
 
 ! Given post collision velocity, calculate which points to map mass back to.
@@ -364,48 +382,56 @@ subroutine find_points(vr_prime, vtheta_prime, grid_r, grid_theta, map_coords)
 end subroutine find_points
 
 ! Given coordinates to map mass back to, calculate mass and add back to vdf.
-subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vtheta_prime)
+subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, grid_z, &
+    vr_prime, vtheta_prime, vz_prime)
     implicit none
-    double precision, intent(in) :: map_coords(5,2)
-    double precision, allocatable, intent(inout) :: vdf(:,:)
-    double precision, allocatable, intent(in) :: grid_r(:), grid_theta(:)
-    double precision, intent(in) :: vr_prime, vtheta_prime
+    double precision, intent(in) :: map_coords(7,3)
+    double precision, allocatable, intent(inout) :: vdf(:,:,:)
+    double precision, allocatable, intent(in) :: grid_r(:), grid_theta(:), grid_z(:)
+    double precision, intent(in) :: vr_prime, vtheta_prime, vz_prime
     double precision, intent(in) :: delta_m
 
-    double precision :: mapping(4,4) ! matrix A
-    double precision :: b(4) ! matrix B
-    double precision :: pivot(4) = 0.0
+    double precision :: mapping(5,5) ! matrix A
+    double precision :: b(5) ! matrix B
+    double precision :: pivot(5) = 0.0
     integer :: rc ! return code
     integer :: i
-    integer :: vr_loc, vtheta_loc ! index of v,grid_theta in vdf
-    double precision :: total_p_x, total_p_y, total_e
+    integer :: vr_loc, vtheta_loc, vz_loc ! index of v,grid_theta in vdf
+    double precision :: total_p_x, total_p_y, total_p_z, total_e
 
     ! Create mapping matrix.
     ! Mass.
     mapping(1,:) = 1.0d0
-    mapping(1,4) = 2.0d0
+    mapping(1,5) = 3.0d0
     b(1) = 1.0d0
     ! x-momentum.
-    do i = 1,4
+    do i = 1,5
         mapping(2,i) = map_coords(i,1)*cos(map_coords(i,2))
     end do
     b(2) = vr_prime*cos(vtheta_prime)
     ! y-momentum.
-    do i = 1,4
+    do i = 1,5
         mapping(3,i) = map_coords(i,1)*sin(map_coords(i,2))
     end do
     b(3) = vr_prime*sin(vtheta_prime)
-    ! Energy.
-    do i = 1,4
-        mapping(4,i) = map_coords(i,1)**2
+    ! z-momentum.
+    do i = 1,5
+        mapping(4,i) = map_coords(i,3)
     end do
-    b(4) = vr_prime**2
-    if (map_coords(5,1) .ne. -1.0) then 
-        mapping(2,4) = mapping(2,4) + map_coords(5,1)*cos(map_coords(5,2))
-        mapping(3,4) = mapping(3,4) + map_coords(5,1)*sin(map_coords(5,2))
-        mapping(4,4) = mapping(4,4) + map_coords(5,1)**2
+    b(4) = vz_prime
+    ! Energy.
+    do i = 1,5
+        mapping(5,i) = map_coords(i,1)**2
+    end do
+    b(5) = vr_prime**2
+
+    if (map_coords(7,1) .ne. -1.0) then 
+        mapping(2,5) = mapping(2,5) + map_coords(6,1)*cos(map_coords(6,2)) + map_coords(7,1)*cos(map_coords(7,2)) 
+        mapping(3,5) = mapping(3,5) + map_coords(6,1)*sin(map_coords(6,2)) + map_coords(7,1)*sin(map_coords(7,2))
+        mapping(4,5) = mapping(4,5) + map_coords(6,3) + map_coords(6,3)
+        mapping(5,5) = mapping(5,5) + map_coords(6,1)**2 + map_coords(7,1)**2
     else
-        mapping(1,4) = 1.0d0
+        mapping(1,5) = 2.0d0
     end if
     b = delta_m * b
 
@@ -415,10 +441,10 @@ subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vth
     endwhere
 
     ! LAPACK matrix solver.
-    call dgesv(4, 1, mapping, 4, pivot, b, 4, rc)
+    call dgesv(5, 1, mapping, 5, pivot, b, 5, rc)
     if (rc .ne. 0) then
         print *, "error on 1: ", rc
-        do i = 1,4
+        do i = 1,5
             print *, map_coords(i,1), map_coords(i,2)
         end do
         print *, vr_prime, vtheta_prime
@@ -429,28 +455,36 @@ subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vth
     ! Check remapping conserves momentum.
     total_p_x = 0.0d0
     total_p_y = 0.0d0
+    total_p_z = 0.0d0
     total_e = 0.0d0
 
-    do i = 1,4
+    do i = 1,5
         total_p_x = total_p_x + b(i) * map_coords(i,1)*cos(map_coords(i,2))
         total_p_y = total_p_y + b(i) * map_coords(i,1)*sin(map_coords(i,2))
+        total_p_z = total_p_z + b(i) * map_coords(i,3)
         total_e = total_e + b(i) * map_coords(i,1)**2
     end do
-    if (map_coords(5,1) .ne. -1.0) then 
-        total_p_x = total_p_x + b(4) * map_coords(5,1)*cos(map_coords(5,2))
-        total_p_y = total_p_y + b(4) * map_coords(5,1)*sin(map_coords(5,2))
-        total_e = total_e + b(4) * map_coords(5,1)**2
+    if (map_coords(7,1) .ne. -1.0) then 
+        total_p_x = total_p_x + b(5) * (map_coords(6,1)*cos(map_coords(6,2)) + map_coords(7,1)*cos(map_coords(7,2)))
+        total_p_y = total_p_y + b(5) * (map_coords(6,1)*sin(map_coords(6,2)) + map_coords(7,1)*sin(map_coords(7,2)))
+        total_e = total_e + b(5) * (map_coords(6,1)**2 + map_coords(7,1)**2)
     end if
 
     if (abs(total_p_x) - abs(delta_m*vr_prime*cos(vtheta_prime)) .gt. 1D-12) then 
         print *, "remapping x_momentum not conserved"
-        do i = 1,4
+        do i = 1,7
             print *, map_coords(i,:)
         end do
     end if
     if (abs(total_p_y) - abs(delta_m*vr_prime*sin(vtheta_prime)) .gt. 1D-12) then
         print *, "remapping y_momentum not conserved"
-        do i = 1,4
+        do i = 1,7
+            print *, map_coords(i,:)
+        end do
+    end if
+    if (abs(total_p_z) - abs(delta_m*vz_prime) .gt. 1D-12) then
+        print *, "remapping z_momentum not conserved"
+        do i = 1,7
             print *, map_coords(i,:)
         end do
     end if
@@ -460,16 +494,17 @@ subroutine replenish(map_coords, vdf, delta_m, grid_r, grid_theta, vr_prime, vth
     end if
 
     ! Add mass back to vdf.
-    do i = 1,4
+    do i = 1,7
         vr_loc = find_loc(grid_r, map_coords(i,1))
         vtheta_loc = find_loc(grid_theta, map_coords(i,2))
-        vdf(vr_loc, vtheta_loc) = vdf(vr_loc, vtheta_loc) + b(i)
+        vz_loc = find_loc(grid_z, map_coords(i,3))
+        if (i > 5) then
+            vdf(vr_loc, vtheta_loc, vz_loc) = vdf(vr_loc, vtheta_loc, vz_loc) + b(5)
+        else
+            vdf(vr_loc, vtheta_loc, vz_loc) = vdf(vr_loc, vtheta_loc, vz_loc) + b(i)
+        end if
     end do
-    if (map_coords(5,1) .ne. -1.0d0) then 
-        vr_loc = find_loc(grid_r, map_coords(5,1))
-        vtheta_loc = find_loc(grid_theta, map_coords(5,2))
-        vdf(vr_loc, vtheta_loc) = vdf(vr_loc, vtheta_loc) + b(4)
-    end if
+    
 end subroutine replenish
 
 ! ------------------ COLLIDE SUBROUTINE HELPER FUNCTIONS ------------------ !
@@ -515,6 +550,25 @@ pure function find_v_bounds(vr, grid_r) result(result)
         end if
     end do
 end function find_v_bounds
+
+! Find grid velocities that bound vz
+pure function find_z_bounds(vz, grid_z) result(result)
+    implicit none
+    double precision, intent(in) :: vz
+    double precision, allocatable, intent(in) :: grid_z(:)
+    double precision :: result(2)
+    integer :: i
+
+    result = 0.0
+
+    do i = 1,ubound(grid_z,1)-1
+        if (vz .lt. grid_z(i+1) .or. abs(vz - grid_z(i+1)) .lt. 1D-12) then
+            result(1) = grid_z(i)
+            result(2) = grid_z(i+1)
+            exit
+        end if
+    end do
+end function find_z_bounds
 
 ! Better version of inbuilt findloc designed to compare floats.
 pure function find_loc(arr, target) result(res)
