@@ -11,12 +11,12 @@ program collision
     ! Declare variables.
     double precision, parameter :: vr_min = 0.0d0
     double precision, parameter :: vr_max = 3.5d0
-    integer, parameter :: n_r = 11 ! number of radial velocity grid points
-    integer, parameter :: n_theta = 40 ! number of theta grid points
-    integer, parameter :: n_t = 100 ! number of timesteps
-    double precision, parameter :: m_hat = 1
-    double precision, parameter :: t_hat = 0.2d0
-    double precision, parameter :: ndens_hat = 1
+    integer, parameter :: n_r = 8 ! number of radial velocity grid points
+    integer, parameter :: n_theta = 20 ! number of theta grid points
+    integer, parameter :: n_t = 200 ! number of timesteps
+    double precision, parameter :: m_hat = 1.0
+    double precision, parameter :: t_hat = 0.05d0
+    double precision, parameter :: ndens_hat = 1.0
     double precision, parameter :: temp_hat = 1.0
     double precision, parameter :: kn = 1.0d0
     
@@ -68,6 +68,7 @@ program collision
     do i = 2,n_r
         grid_r(i) = grid_r(i-1) + (vr_max - vr_min)/(n_r - 1) 
     end do
+    print *, grid_r
 
     grid_theta(1) = 0.0d0
     do i = 2,n_theta
@@ -84,18 +85,18 @@ program collision
 
     ! Build Maxwellian velocity distribution function.
     vdf = 0.0d0
-    vdf(1,1) = exp(-(1.0**2 + 0.0**2)) * (m_hat/temp_hat) * Pi * (dr/2)**2
-    do vr = 2,size(grid_r)
-        do vtheta = 1,size(grid_theta)
-            vdf(vr, vtheta) = exp(-((grid_r(vr)*cos(grid_theta(vtheta)) - 1.0)**2 + &
-                (grid_r(vr)*sin(grid_theta(vtheta)))**2) * (m_hat/temp_hat))
-            vdf(vr, vtheta) = vdf(vr, vtheta) * grid_r(vr) * dr * dtheta
-        end do
-    end do
-    vdf = vdf * ndens_hat * (m_hat/(Pi*temp_hat))**1.0
-    vdf = vdf/sum(vdf)
-    initial_zero_point = vdf(1,1)
-    print *, (initial_zero_point)
+    ! vdf(1,1) = exp(-(0.0**2 + 0.0**2) * (m_hat/temp_hat)) * Pi * (dr/2)**2
+    ! do vr = 2,size(grid_r)
+    !     do vtheta = 1,size(grid_theta)
+    !         vdf(vr, vtheta) = exp(-((grid_r(vr)*cos(grid_theta(vtheta)) + 0.0)**2 + &
+    !             (grid_r(vr)*sin(grid_theta(vtheta)))**2) * (m_hat/temp_hat))
+    !         vdf(vr, vtheta) = vdf(vr, vtheta) * grid_r(vr) * dr * dtheta
+    !     end do
+    ! end do
+    ! vdf = vdf * ndens_hat * (m_hat/(Pi*temp_hat))**1.0
+    ! vdf = vdf/sum(vdf)
+    ! initial_zero_point = vdf(1,1)
+    ! print *, (initial_zero_point)
 
     if (method .eq. 2) then 
         cutoff = n_r/2 ! last vr to do Monte Carlo, switch to N^2 afterwards
@@ -103,8 +104,8 @@ program collision
         cutoff = 0
     end if
 
-    ! vdf(2,1) = 0.5d0
-    ! vdf(2,6) = 0.5d0
+    vdf(3,1) = 4.0d0
+    vdf(3,11) = 4.0d0
 
     ! Build BKW velocity distribution function.
     ! vdf(1,:) = 0.0d0
@@ -133,7 +134,7 @@ program collision
     y_momentum1 = calc_y_momentum(grid_r, grid_theta, vdf)
     energy1 = calc_energy(grid_r, grid_theta, vdf)
     entropy(1) = calc_entropy(vdf)
-    moment(1) = calc_moment(vdf, grid_r, 8)
+    moment(1) = calc_moment(vdf, grid_r, 6)
     neg_mass(1) = abs(sum(vdf, mask=vdf .lt. 0.0d0))/sum(vdf)
     zero_point(1) = vdf(1, 1)
     print *, "Initial mass: ", mass1
@@ -223,7 +224,7 @@ program collision
             end do
 
             entropy(t+1) = calc_entropy(vdf)
-            moment(t+1) = calc_moment(vdf, grid_r, 8)
+            moment(t+1) = calc_moment(vdf, grid_r, 6)
             neg_mass(t+1)  = abs(sum(vdf, mask=vdf .lt. 0.0d0))/sum(vdf)
             zero_point(t+1) = vdf(1, 1)
 
