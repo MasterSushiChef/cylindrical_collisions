@@ -158,12 +158,11 @@ program collision
     print *, "Initial energy: ", energy1
     print *, ""
 
-    do t = 1,n_t
+    do t = 1,1
         if (method .eq. 1 .or. method .eq. 2) then
             ! Build cdf.
             cdf = 0.0d0
             call build_cdf(n_r, n_theta, n_z, vdf, cdf)
-            print *, cdf
             nc = nint((t_hat * temp_hat**(2.0/3.0d0))/(kn * crms**2 * 1.5d0 * sum(grid_r * dr * dtheta * dz)/n_r)) ! beta^3 avg
 
             ! Calculate delta_m. Using psuedo-Maxwell molecules.
@@ -172,13 +171,15 @@ program collision
             delta_m2 = delta_m1
             print *, delta_m1, nc, t
 
-            do j = 1,int(nc)
+            do j = 1,5
                 ! Calculate pre-collision velocities.
                 call precollision(grid_r, grid_theta, grid_z, n_theta, n_r, cdf, vr1, vtheta1, vz1)
                 call precollision(grid_r, grid_theta, grid_z, n_theta, n_r, cdf, vr2, vtheta2, vz2)
+                print *, vr1, vtheta1, vz1
+                print *, vr2, vtheta2, vz2
 
                 ! If we select the same velocity, cycle.
-                if ((vr1 .eq. vr2) .and. (vtheta1 .eq. vtheta2)) cycle
+                if ((vr1 .eq. vr2) .and. (vtheta1 .eq. vtheta2) .and. (vz1 .eq. vz2)) cycle
 
                 ! Collide two particles.
                 call collide(vr1, vr2, vtheta1, vtheta2, vz1, vz2, vr1_prime, vr2_prime, vtheta1_prime, vtheta2_prime, &
@@ -188,9 +189,9 @@ program collision
                 call deplete(vdf, grid_r, grid_theta, grid_z, vr1, vr2, vtheta1, vtheta2, vz1, vz2, delta_m1, delta_m2)
 
                 ! Find points to map mass back to and add it to vdf for both points.
-                call find_points(vr1_prime, vtheta1_prime, grid_r, grid_theta, map_coords)
+                call find_points(vr1_prime, vtheta1_prime, vz1_prime, grid_r, grid_theta, grid_z, map_coords)
                 call replenish(map_coords, vdf, delta_m1, grid_r, grid_theta, grid_z, vr1_prime, vtheta1_prime, vz1_prime)
-                call find_points(vr2_prime, vtheta2_prime, grid_r, grid_theta, map_coords)
+                call find_points(vr2_prime, vtheta2_prime, vz1_prime, grid_r, grid_theta, grid_z, map_coords)
                 call replenish(map_coords, vdf, delta_m2, grid_r, grid_theta, grid_z, vr2_prime, vtheta2_prime, vz2_prime)
             end do
 
@@ -244,6 +245,7 @@ program collision
     print *, "Mass after collisions: ", mass2
     print *, "x-momentum after collisions: ", x_momentum2
     print *, "y-momentum after collisions: ", y_momentum2
+    print *, "z-momentum after collisions: ", z_momentum2
     print *, "Energy after collisions: ", energy2
     print *, ""
 
@@ -251,6 +253,7 @@ program collision
     print *, "Mass percent error: ", (mass2 - mass1)/mass1 * 100
     print *, "x-momentum percent error: ", (x_momentum2 - x_momentum1)/x_momentum1 * 100
     print *, "y-momentum percent error: ", (y_momentum2 - y_momentum1)/y_momentum1 * 100
+    print *, "z-momentum percent error: ", (z_momentum2 - z_momentum1)/z_momentum1 * 100
     print *, "Energy percent error: ", (energy2 - energy1)/energy1 * 100
     print *, "Zero point initial: ", initial_zero_point
     print *, "Zero point after: ", vdf(1, 1, (n_z+1)/2)
